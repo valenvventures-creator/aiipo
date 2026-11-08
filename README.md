@@ -32,6 +32,22 @@ Run the tests (23 unit tests and 14 end-to-end HTTP tests):
 npm test
 ```
 
+### Deploying (hosting)
+
+This is a Node.js server with a database and encrypted file storage. It **cannot run on static hosts
+such as Netlify or GitHub Pages**: they only serve files, so the site shows "Page not found".
+
+Use a host that runs a Node server and provides a persistent disk. The repository includes a
+`render.yaml` blueprint for [Render](https://render.com):
+
+1. In Render, choose **New → Blueprint** and select this repository.
+2. Approve the plan. A persistent disk requires a paid instance; Render generates `TA_MASTER_KEY` automatically.
+3. Optionally fill in `MAIL_WEBHOOK_URL` and its token (required for sign-up emails), and `ANTHROPIC_API_KEY`.
+4. Open the `onrender.com` URL. The live demo works immediately.
+
+Any other Node or Docker host with a persistent volume also works (Railway, Fly.io, a VPS) using the
+`Dockerfile` and the variables in `.env.example`.
+
 ### Production
 
 1. Generate a master key, then store it in your secret manager (losing it makes encrypted data unrecoverable):

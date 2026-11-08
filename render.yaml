@@ -1,0 +1,35 @@
+# Render Blueprint: https://render.com/docs/blueprint-spec
+# Deploy: Render dashboard -> New -> Blueprint -> select this repository.
+services:
+  - type: web
+    name: thought-authorities-ai-ipo
+    runtime: node
+    plan: starter            # a persistent disk requires a paid plan
+    buildCommand: npm ci --omit=dev --no-audit --no-fund
+    startCommand: npm start
+    healthCheckPath: /healthz
+    disk:
+      name: ta-ipo-data
+      mountPath: /var/lib/ta-ipo
+      sizeGB: 1
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: NODE_VERSION
+        value: "22.13.0"
+      - key: HOST
+        value: 0.0.0.0
+      - key: TRUST_PROXY
+        value: "true"
+      - key: DATABASE_PATH
+        value: /var/lib/ta-ipo/ta-ipo.sqlite
+      - key: UPLOAD_DIR
+        value: /var/lib/ta-ipo/objects
+      - key: TA_MASTER_KEY        # 256-bit random key generated once by Render; back it up securely
+        generateValue: true
+      - key: MAIL_WEBHOOK_URL     # needed so sign-up verification and reset emails are delivered
+        sync: false
+      - key: MAIL_WEBHOOK_TOKEN
+        sync: false
+      - key: ANTHROPIC_API_KEY    # optional: enables the Claude-powered A.I. guide
+        sync: false

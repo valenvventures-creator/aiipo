@@ -34,7 +34,8 @@ function loadMasterKey() {
 export const config = {
   port: Number(env.PORT || 3000),
   host: env.HOST || '127.0.0.1',
-  baseUrl: (env.BASE_URL || `http://localhost:${env.PORT || 3000}`).replace(/\/$/, ''),
+  // RENDER_EXTERNAL_URL is set automatically on Render.
+  baseUrl: (env.BASE_URL || env.RENDER_EXTERNAL_URL || `http://localhost:${env.PORT || 3000}`).replace(/\/$/, ''),
   dbPath: env.DATABASE_PATH || (IS_TEST ? ':memory:' : path.join(ROOT, 'data', 'ta-ipo.sqlite')),
   uploadDir: env.UPLOAD_DIR || path.join(ROOT, 'data', 'objects'),
   masterKey: loadMasterKey(),
