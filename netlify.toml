@@ -6,7 +6,6 @@
 [[headers]]
   for = "/*"
   [headers.values]
-    Content-Security-Policy = "default-src 'none'; script-src 'sha256-XOavHRj4hk0BQdZHvETsxOizEtRsp4fJAHD49T1P9eU='; style-src 'sha256-Dr3VLxo62wVTx5umOejGs4++wYMzxw48/2/NlxQhSrs=' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src data:; form-action 'none'; frame-ancestors 'none'; base-uri 'none'; object-src 'none'"
     X-Content-Type-Options = "nosniff"
     X-Frame-Options = "DENY"
     Referrer-Policy = "same-origin"
