@@ -32,7 +32,25 @@ Run the tests (23 unit tests and 14 end-to-end HTTP tests):
 npm test
 ```
 
-### Deploying (hosting)
+### Static edition (index.html, e.g. for Netlify)
+
+`index.html` at the repository root is a single self-contained file: the full marketing site, the
+login, sign-up and reset pages, and an interactive in-browser demo (dashboard, roadmap and SOPs, route
+assessment, calculators, communications check, advisors, learning centre). It runs the same domain
+engines as the server, on fictional data only. Nothing is saved or sent.
+
+**It has no accounts and stores no client data.** A static file cannot securely verify passwords or
+protect sensitive information, so its login and sign-up forms explain that accounts require the server
+edition below.
+
+- Netlify: connect the repository. `netlify.toml` publishes only `index.html` (never the source code)
+  with a strict hash-based Content Security Policy.
+- After changing the source, regenerate it:
+  ```bash
+  npm run build:static
+  ```
+
+### Deploying the full app (server edition)
 
 This is a Node.js server with a database and encrypted file storage. It **cannot run on static hosts
 such as Netlify or GitHub Pages**: they only serve files, so the site shows "Page not found".

@@ -4,15 +4,21 @@
   "private": true,
   "description": "Thought Authorities A.I. IPO - Canadian and US IPO readiness and execution workspace (functional pilot).",
   "type": "module",
-  "engines": { "node": ">=22.13" },
+  "engines": {
+    "node": ">=22.13"
+  },
   "scripts": {
     "start": "node --disable-warning=ExperimentalWarning src/server.js",
     "dev": "NODE_ENV=development node --disable-warning=ExperimentalWarning --watch src/server.js",
     "test": "NODE_ENV=test node --disable-warning=ExperimentalWarning --test test/unit.test.js && NODE_ENV=test node --disable-warning=ExperimentalWarning --test test/e2e.test.js",
     "keygen": "node scripts/keygen.js",
-    "backup": "node --disable-warning=ExperimentalWarning scripts/backup.js"
+    "backup": "node --disable-warning=ExperimentalWarning scripts/backup.js",
+    "build:static": "node --disable-warning=ExperimentalWarning scripts/build-static.js"
   },
   "optionalDependencies": {
     "@anthropic-ai/sdk": "^1.6.0"
+  },
+  "devDependencies": {
+    "esbuild": "^0.24.2"
   }
 }
