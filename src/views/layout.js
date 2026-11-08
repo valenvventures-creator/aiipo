@@ -27,9 +27,16 @@ ${body}
 </html>`;
 }
 
-export const brandLockup = (href = '/') => html`<a class="brand" href="${href}" aria-label="Thought Authorities A.I. IPO home">
-  <img class="brand-crest" src="/brand/crest-256.png" alt="" width="62" height="38">
-  <span class="brand-text"><img class="brand-wordmark" src="/brand/wordmark-600.png" alt="Thought Authorities" width="150" height="43"><span class="brand-sub">A.I. IPO</span></span>
+/**
+ * Brand lockup built from the original crest and wordmark artwork (unchanged).
+ * layout 'h': crest | divider | wordmark over "A.I. IPO" (headers).
+ * layout 'v': crest, wordmark and "A.I. IPO" stacked on one centre axis (sidebar, footer, sign-in panel).
+ * size: 'sm' | 'md' | 'lg'. tone: 'light' (on ivory) or 'dark' (on navy).
+ */
+export const brandLockup = (href = '/', { layout = 'h', size = 'md', tone = 'light' } = {}) => html`<a class="lockup lockup-${layout} lockup-${size} lockup-${tone}" href="${href}" aria-label="Thought Authorities A.I. IPO - home">
+  <img class="lk-crest" src="/brand/${size === 'lg' ? 'crest-600' : 'crest-256'}.png" alt="" width="256" height="156">
+  ${layout === 'h' ? raw('<span class="lk-divider" aria-hidden="true"></span>') : ''}
+  <span class="lk-text"><img class="lk-word" src="/brand/wordmark-600.png" alt="Thought Authorities" width="600" height="173"><span class="lk-sub"><span>A.I.&nbsp;IPO</span></span></span>
 </a>`;
 
 export function marketingShell({ body, nonce, title, session }) {
@@ -38,7 +45,7 @@ export function marketingShell({ body, nonce, title, session }) {
     body: html`
 <header class="mkt-header">
   <div class="wrap mkt-header-in">
-    ${brandLockup('/')}
+    ${brandLockup('/', { layout: 'h', size: 'md', tone: 'light' })}
     <nav class="mkt-nav" aria-label="Primary">
       <a href="/#route">The route</a><a href="/#workspace">Workspace</a><a href="/#numbers">Numbers</a><a href="/#security">Security</a><a href="/#faq">FAQ</a>
     </nav>
@@ -51,7 +58,7 @@ export function marketingShell({ body, nonce, title, session }) {
 <footer class="mkt-footer">
   <div class="wrap footer-grid">
     <div>
-      <img src="/brand/full-600.png" alt="Thought Authorities" width="150" height="136" class="footer-logo">
+      ${brandLockup('/', { layout: 'v', size: 'md', tone: 'dark' })}
       <p class="muted">Your IPO, organized by A.I. and decided by professionals.</p>
     </div>
     <div><h3>Product</h3><a href="/#route">The route</a><a href="/#workspace">Workspace</a><a href="/#numbers">Financial tools</a><a href="/security">Security</a></div>
@@ -72,7 +79,7 @@ export function authShell({ body, nonce, title }) {
     body: html`
 <main id="main" class="auth-grid">
   <aside class="auth-panel" aria-hidden="false">
-    <a href="/" class="auth-logo" aria-label="Thought Authorities home"><img src="/brand/full-600.png" alt="Thought Authorities" width="260" height="236"></a>
+    ${brandLockup('/', { layout: 'v', size: 'lg', tone: 'dark' })}
     <p class="auth-tag">One route. Every requirement. Verified evidence.</p>
     <p class="auth-sub">Calm preparation. Professional judgment.</p>
     <ul class="auth-points">
@@ -108,7 +115,7 @@ export function appShell({ ctx, active, title, body, nonce, flash }) {
 ${ctx.isDemo ? html`<div class="demo-bar" role="status">Demo workspace · fictional company and illustrative data · not legal conclusions · deleted automatically within 2 hours. <a href="/signup">Create your own account</a></div>` : ''}
 <div class="app-grid">
   <aside class="sidebar" id="sidebar">
-    <div class="sidebar-brand">${brandLockup('/app')}</div>
+    <div class="sidebar-brand">${brandLockup('/app', { layout: 'v', size: 'sm', tone: 'dark' })}</div>
     <nav aria-label="Workspace">
       ${NAV.map(([k, label, href]) => html`<a href="${href}" class="${k === active ? 'active' : ''}" ${k === active ? raw('aria-current="page"') : ''}>${label}</a>`)}
     </nav>

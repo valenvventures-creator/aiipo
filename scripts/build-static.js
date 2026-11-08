@@ -51,7 +51,7 @@ const pages = [
 const bundle = await build({ entryPoints: [path.join(ROOT, 'src/static/client.js')], bundle: true, format: 'iife', minify: true, platform: 'browser', target: 'es2020', write: false });
 const js = bundle.outputFiles[0].text.replace(/<\/script/gi, '<\\/script');
 const css = fs.readFileSync(path.join(ROOT, 'public/css/site.css'), 'utf8');
-const brand = rewrite(toHtml(brandLockup('#/')));
+const brand = rewrite(toHtml(brandLockup('#/', { layout: 'v', size: 'sm', tone: 'dark' })));
 
 const html = `<!doctype html>
 <html lang="en">

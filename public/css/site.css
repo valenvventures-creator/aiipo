@@ -380,3 +380,43 @@ h1, h2, h3, .big-num, .sb-n, .sr-n, .rail-n, .l-n, .answer .rec { font-variant-n
   .mkt-cta .link-quiet { display: inline; }
 }
 .btn { white-space: nowrap; }
+
+/* ---------- Brand lockup (original crest + wordmark artwork, arranged on a fixed grid) ---------- */
+.lockup { --crest-h: 52px; --word-w: 132px; --sub-size: 9.5px; --gap: 4px; --div-space: 14px;
+  display: inline-flex; align-items: center; text-decoration: none; line-height: 1; color: var(--gold-deep); }
+.lockup img { display: block; max-width: none; }
+.lk-crest { height: var(--crest-h); width: auto; flex: none; }
+.lk-text { display: inline-flex; flex-direction: column; align-items: stretch; gap: var(--gap); width: var(--word-w); flex: none; }
+.lk-word { width: 100%; height: auto; }
+.lk-sub { display: flex; align-items: center; gap: .75em; font: 700 var(--sub-size)/1 var(--sans); letter-spacing: .42em; text-transform: uppercase; white-space: nowrap; }
+.lk-sub > span { margin-right: -.42em; } /* cancel trailing letter-spacing so the label is optically centred */
+.lk-sub::before, .lk-sub::after { content: ''; flex: 1; height: 1px; background: currentColor; opacity: .55; }
+.lk-divider { width: 1px; align-self: stretch; margin: 2px var(--div-space); background: currentColor; opacity: .35; flex: none; }
+.lockup-dark { color: var(--gold); }
+.lockup-dark .lk-divider { opacity: .45; }
+.lockup:hover { opacity: .92; }
+
+/* Horizontal: crest height equals the wordmark + label block, so all three share top and bottom edges */
+.lockup-h.lockup-md { --crest-h: 52px; --word-w: 132px; --sub-size: 9.5px; --gap: 4px; }
+.lockup-h.lockup-sm { --crest-h: 40px; --word-w: 100px; --sub-size: 7.5px; --gap: 3px; --div-space: 10px; }
+
+/* Stacked: every element on one centre axis */
+.lockup-v { flex-direction: column; text-align: center; }
+.lockup-v .lk-text { margin-top: var(--stack-gap, 10px); }
+.lockup-v.lockup-sm { --crest-h: 50px; --word-w: 148px; --sub-size: 9px; --gap: 6px; --stack-gap: 10px; }
+.lockup-v.lockup-md { --crest-h: 70px; --word-w: 180px; --sub-size: 10.5px; --gap: 8px; --stack-gap: 12px; }
+.lockup-v.lockup-lg { --crest-h: 128px; --word-w: 280px; --sub-size: 14px; --gap: 12px; --stack-gap: 20px; }
+
+/* Placement */
+.mkt-header-in { min-height: 84px; }
+.sidebar-brand { display: flex; justify-content: center; padding: 10px 8px 20px; }
+.footer-grid > div:first-child .lockup { margin-bottom: 16px; }
+.auth-panel .lockup { filter: drop-shadow(0 10px 30px rgba(0, 0, 0, .35)); }
+.auth-panel .auth-tag { margin-top: 30px; max-width: 42ch; letter-spacing: .16em; }
+@media (max-width: 860px) { .auth-panel .lockup-lg { --crest-h: 84px; --word-w: 190px; --sub-size: 10px; --gap: 8px; --stack-gap: 14px; } }
+@media (max-width: 560px) {
+  .mkt-header .lockup-h { --crest-h: 40px; --word-w: 100px; --sub-size: 7.5px; --gap: 3px; --div-space: 10px; }
+  .mkt-header-in { min-height: 68px; }
+}
+.footer-grid a.lockup { display: inline-flex; padding: 0; color: var(--gold); }
+.footer-grid a.lockup:hover { color: var(--gold); }
