@@ -420,3 +420,13 @@ h1, h2, h3, .big-num, .sb-n, .sr-n, .rail-n, .l-n, .answer .rec { font-variant-n
 }
 .footer-grid a.lockup { display: inline-flex; padding: 0; color: var(--gold); }
 .footer-grid a.lockup:hover { color: var(--gold); }
+
+/* Worked-example table: round the corners on the rows, not by clipping the table, so the caption is never cut off */
+.calc-sample { overflow: visible; border-collapse: separate; border-spacing: 0; background: transparent; box-shadow: none; }
+.calc-sample caption { padding: 0 2px 10px; }
+.calc-sample tbody { box-shadow: var(--shadow); }
+.calc-sample th, .calc-sample td { background: var(--card); }
+.calc-sample tr:first-child th { border-top-left-radius: var(--radius); }
+.calc-sample tr:first-child td { border-top-right-radius: var(--radius); }
+.calc-sample tr:last-child th { border-bottom-left-radius: var(--radius); border-bottom: 0; }
+.calc-sample tr:last-child td { border-bottom-right-radius: var(--radius); border-bottom: 0; }
