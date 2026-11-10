@@ -31,6 +31,11 @@ function loadMasterKey() {
   return Buffer.from(fs.readFileSync(keyFile, 'utf8').trim(), 'base64');
 }
 
+// Email verification: 'required' needs a working mail transport. 'auto' (default) requires it only when
+// email can actually be delivered (a mail provider is configured, or the development outbox is active).
+const mailAvailable = Boolean(env.MAIL_WEBHOOK_URL) || !IS_PROD;
+const verifyMode = (env.EMAIL_VERIFICATION || 'auto').toLowerCase();
+
 export const config = {
   port: Number(env.PORT || 3000),
   host: env.HOST || '127.0.0.1',
@@ -66,4 +71,8 @@ export const config = {
     enabled: Boolean(env.ANTHROPIC_API_KEY || env.ANTHROPIC_AUTH_TOKEN),
   },
   devOutbox: !IS_PROD,
+  mailAvailable,
+  requireEmailVerification: verifyMode === 'required' || (verifyMode === 'auto' && mailAvailable),
+  // Extra site origins allowed to submit forms, e.g. a Netlify domain that forwards to this server.
+  allowedOrigins: (env.ALLOWED_ORIGINS || '').split(',').map((o) => o.trim().replace(/\/$/, '')).filter(Boolean),
 };

@@ -52,16 +52,26 @@ edition below.
 
 ### Deploying the full app (server edition)
 
-This is a Node.js server with a database and encrypted file storage. It **cannot run on static hosts
-such as Netlify or GitHub Pages**: they only serve files, so the site shows "Page not found".
+Accounts, login, MFA, projects and every workspace feature need the Node server running on a host with
+a persistent disk. Static hosts (Netlify alone, GitHub Pages) cannot run it.
 
-Use a host that runs a Node server and provides a persistent disk. The repository includes a
-`render.yaml` blueprint for [Render](https://render.com):
-
+**1. Run the server on Render** (blueprint included):
 1. In Render, choose **New → Blueprint** and select this repository.
-2. Approve the plan. A persistent disk requires a paid instance; Render generates `TA_MASTER_KEY` automatically.
-3. Optionally fill in `MAIL_WEBHOOK_URL` and its token (required for sign-up emails), and `ANTHROPIC_API_KEY`.
-4. Open the `onrender.com` URL. The live demo works immediately.
+2. Approve the **Starter** plan; the persistent disk that keeps accounts and data needs a paid instance.
+3. Leave the optional values blank for now and deploy. Render generates `TA_MASTER_KEY` automatically;
+   copy it from the Environment tab and store it safely.
+4. Open the `onrender.com` address: sign-up, login and the demo all work there.
+
+**2. Optional: keep using your Netlify address.** In Netlify, go to **Site configuration → Environment
+variables**, add `BACKEND_URL` = your `https://…onrender.com` address, and redeploy. Netlify then forwards
+every request to the server. In Render, set both `BASE_URL` and `ALLOWED_ORIGINS` to your Netlify address
+(for example `https://your-site.netlify.app`) and save.
+
+**Email.** Without `MAIL_WEBHOOK_URL`, sign-up activates accounts immediately without email
+verification, password-reset emails are disabled, and invitations show the admin a private link to share.
+To turn email on, set `MAIL_WEBHOOK_URL=https://api.resend.com/emails`, set `MAIL_WEBHOOK_TOKEN` to a Resend
+API key, and set `MAIL_FROM` to an address on your verified domain. Verification then switches on
+automatically (`EMAIL_VERIFICATION=auto`; set it to `required` or `off` to override).
 
 Any other Node or Docker host with a persistent volume also works (Railway, Fly.io, a VPS) using the
 `Dockerfile` and the variables in `.env.example`.

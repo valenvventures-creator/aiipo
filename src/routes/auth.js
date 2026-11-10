@@ -64,7 +64,7 @@ export function register(r) {
     }
     const user = result.user;
     if (user.is_demo) return view('Email or password is incorrect.', 401);
-    if (!user.email_verified_at) {
+    if (!user.email_verified_at && config.requireEmailVerification) {
       if (rateLimit(`verify-resend:${user.id}`, 3, 60 * 60e3).ok) await sendVerification(user);
       return view('Please verify your email first. We have sent you a new verification link.', 403);
     }
@@ -114,7 +114,7 @@ export function register(r) {
 
   r.get('/signup', (req) => (req.session?.stage === 'full' ? { redirect: '/app' } : { html: V.signupPage({ nonce: req.nonce, csrfToken: req.anonCsrf }) }));
 
-  r.post('/signup', async (req) => {
+  r.post('/signup', async (req, res) => {
     const values = { firstName: str(req.body.firstName, 60), lastName: str(req.body.lastName, 60), email: str(req.body.email, 254).toLowerCase() };
     const password = typeof req.body.password === 'string' ? req.body.password : '';
     const errors = {};
@@ -130,6 +130,20 @@ export function register(r) {
     if (Object.keys(errors).length) return { status: 400, html: V.signupPage({ nonce: req.nonce, csrfToken: req.anonCsrf, errors, values }) };
 
     const existing = findUserByEmail(values.email);
+    if (!config.requireEmailVerification) {
+      // No email delivery configured: activate the account immediately and sign the person in.
+      if (existing) {
+        return { status: 400, html: V.signupPage({ nonce: req.nonce, csrfToken: req.anonCsrf, values, errors: { _: 'We could not create an account with those details. If you already have an account, log in instead.' } }) };
+      }
+      const user = createUser({ ...values, password, verified: false });
+      const orgId = createOrg(`${values.firstName} ${values.lastName}'s organization`);
+      addMembership(orgId, user.id, 'founder');
+      audit({ orgId, userId: user.id, action: 'auth.signup', detail: { emailVerification: 'not configured' }, ip: req.ip });
+      if (req.session) destroySession(req.session.id);
+      startSession(res, req, user);
+      acceptPendingInvite(req, user);
+      return { redirect: '/app/onboarding' };
+    }
     if (existing) {
       // Do not reveal that the account exists; tell the owner instead.
       await sendMail({ kind: 'notice', to: values.email, subject: 'Sign-up attempt - Thought Authorities A.I. IPO',
@@ -158,6 +172,9 @@ export function register(r) {
     const email = str(req.body.email, 254).toLowerCase();
     if (!rateLimit(`forgot-ip:${req.ip}`, 10, 60 * 60e3).ok || !rateLimit(`forgot:${emailLookup(email)}`, 3, 60 * 60e3).ok) {
       return { status: 429, html: V.forgotPage({ nonce: req.nonce, csrfToken: req.anonCsrf, error: 'Too many requests. Please try again later.' }) };
+    }
+    if (!config.mailAvailable) {
+      return { html: V.forgotPage({ nonce: req.nonce, csrfToken: req.anonCsrf, error: 'Password reset by email is not enabled on this site yet. Please contact the site administrator.' }) };
     }
     const user = validateEmail(email) ? findUserByEmail(email) : null;
     if (user && !user.is_demo) {

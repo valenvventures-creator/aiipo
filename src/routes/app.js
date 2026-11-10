@@ -306,8 +306,13 @@ export function register(r) {
     if (!validateEmail(email) || !ROLES[role]) return settingsView(req, ctx, { error: 'Enter a valid email and role.' });
     if (!rateLimit(`invite:${ctx.orgId}`, 30, 24 * 3600e3).ok) return settingsView(req, ctx, { error: 'Daily invitation limit reached.' });
     const { token } = createInvitation(ctx, email, role);
+    const link = `${config.baseUrl}/invite?token=${token}`;
+    if (!config.mailAvailable) {
+      audit({ orgId: ctx.orgId, userId: ctx.userId, action: 'members.invite', detail: { role, delivery: 'manual' } });
+      return settingsView(req, ctx, { flash: { type: 'ok', text: `Invitation created. Email is not configured on this site, so copy this private link and send it to ${email} yourself (it works once and expires in 7 days): ${link}` } });
+    }
     await sendMail({ kind: 'invite', to: email, subject: `You're invited to ${ctx.orgName} on Thought Authorities A.I. IPO`,
-      text: `${ctx.profile.firstName} ${ctx.profile.lastName} invited you to join ${ctx.orgName} as ${ROLES[role]}.\n\nAccept: ${config.baseUrl}/invite?token=${token}\n\nThis invitation expires in 7 days.` });
+      text: `${ctx.profile.firstName} ${ctx.profile.lastName} invited you to join ${ctx.orgName} as ${ROLES[role]}.\n\nAccept: ${link}\n\nThis invitation expires in 7 days.` });
     audit({ orgId: ctx.orgId, userId: ctx.userId, action: 'members.invite', detail: { role } });
     return { redirect: '/app/settings?ok=invited' };
   }, 'post');

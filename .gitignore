@@ -4,3 +4,4 @@ backups/
 .env
 *.sqlite*
 *.zip
+dist/

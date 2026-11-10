@@ -47,9 +47,10 @@ function originOk(req) {
   // Behind a trusted reverse proxy (TRUST_PROXY=true) the public host arrives as X-Forwarded-Host.
   const fwd = config.trustProxy && req.headers['x-forwarded-host'];
   if (origin && fwd && origin === `https://${String(fwd).split(',')[0].trim()}`) return true;
+  if (origin && config.allowedOrigins.includes(origin)) return true;
   if (origin) return origin === allowedOrigin || origin === `http://${req.headers.host}` && !IS_PROD || origin === `https://${req.headers.host}`;
   const ref = req.headers.referer;
-  if (ref) { try { const o = new URL(ref).origin; return o === allowedOrigin || o.endsWith(`//${req.headers.host}`); } catch { return false; } }
+  if (ref) { try { const o = new URL(ref).origin; return o === allowedOrigin || config.allowedOrigins.includes(o) || o.endsWith(`//${req.headers.host}`); } catch { return false; } }
   return !IS_PROD; // non-browser clients in development (tests); browsers always send Origin on POST
 }
 
@@ -131,6 +132,7 @@ export function start() {
     console.log(`Thought Authorities A.I. IPO listening on http://${config.host}:${config.port} (${IS_PROD ? 'production' : 'development'})`);
     if (!config.ai.enabled) console.log('[ai] No ANTHROPIC_API_KEY set - the guide runs in rule-based mode.');
     if (config.devOutbox) console.log(`[mail] Development outbox: ${config.baseUrl}/dev/outbox`);
+    if (!config.mailAvailable) console.warn('[mail] No MAIL_WEBHOOK_URL: sign-up works without email verification; password reset and email invitations are disabled.');
   });
   setInterval(() => { try { purgeExpiredDemos(); } catch (e) { console.error('[demo purge]', e.message); } }, 10 * 60e3).unref();
   const stop = () => server.close(() => process.exit(0));

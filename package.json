@@ -10,7 +10,7 @@
   "scripts": {
     "start": "node --disable-warning=ExperimentalWarning src/server.js",
     "dev": "NODE_ENV=development node --disable-warning=ExperimentalWarning --watch src/server.js",
-    "test": "NODE_ENV=test node --disable-warning=ExperimentalWarning --test test/unit.test.js && NODE_ENV=test node --disable-warning=ExperimentalWarning --test test/e2e.test.js",
+    "test": "NODE_ENV=test node --disable-warning=ExperimentalWarning --test test/unit.test.js && NODE_ENV=test node --disable-warning=ExperimentalWarning --test test/e2e.test.js && NODE_ENV=test EMAIL_VERIFICATION=off node --disable-warning=ExperimentalWarning --test test/e2e-nomail.test.js",
     "keygen": "node scripts/keygen.js",
     "backup": "node --disable-warning=ExperimentalWarning scripts/backup.js",
     "build:static": "node --disable-warning=ExperimentalWarning scripts/build-static.js"
