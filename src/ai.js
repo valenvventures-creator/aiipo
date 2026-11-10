@@ -34,9 +34,9 @@ const SCHEMA = {
   },
 };
 
-function workspaceContext(ctx, project) {
-  const p = plan(ctx, project);
-  const records = listRecords(ctx, project.id).slice(0, 40).map((r) => `- [${r.form}] ${String(r.data.finding || r.data.claim || r.data.content || r.data.question || r.data.obligation || r.data.deliverable || '').slice(0, 160)} (status: ${r.status})`);
+async function workspaceContext(ctx, project) {
+  const p = await plan(ctx, project);
+  const records = (await listRecords(ctx, project.id)).slice(0, 40).map((r) => `- [${r.form}] ${String(r.data.finding || r.data.claim || r.data.content || r.data.question || r.data.obligation || r.data.deliverable || '').slice(0, 160)} (status: ${r.status})`);
   const profileFields = ['legalName', 'incorporationCountry', 'incorporationJurisdiction', 'hqProvince', 'sector', 'venues', 'offeringJurisdictions', 'targetCapital', 'currency', 'accountingBasis', 'auditStatus'];
   const profile = profileFields.filter((k) => project.profile[k]).map((k) => `${k}: ${Array.isArray(project.profile[k]) ? project.profile[k].join(', ') : project.profile[k]}`);
   return {
@@ -71,13 +71,13 @@ function ruleBased(question, project, p) {
 
 export async function askGuide(ctx, project, question) {
   const q = String(question || '').slice(0, 2000);
-  const { text, plan: p } = workspaceContext(ctx, project);
+  const { text, plan: p } = await workspaceContext(ctx, project);
   let answer;
   let model = 'rule-based';
   if (config.ai.enabled) {
     try {
       const { default: Anthropic } = await import('@anthropic-ai/sdk');
-      const client = new Anthropic();
+      const client = new Anthropic({ timeout: 25_000, maxRetries: 1 }); // stay within serverless time limits
       const sources = Object.entries(SOURCES).map(([id, [pub, title]]) => `${id}: ${pub} - ${title}`).join('\n');
       const res = await client.beta.messages.create({
         model: config.ai.model,
@@ -104,7 +104,6 @@ export async function askGuide(ctx, project, question) {
   } else {
     answer = ruleBased(q, project, p);
   }
-  db.prepare('INSERT INTO ai_interactions (id, org_id, user_id, model, mode, payload_enc, at) VALUES (?,?,?,?,?,?,?)')
-    .run(newId(), ctx.orgId, ctx.userId, model, answer.mode, encryptJson({ q, answer }, `ai:${ctx.orgId}`), now());
+  await db.run('INSERT INTO ai_interactions (id, org_id, user_id, model, mode, payload_enc, at) VALUES (?,?,?,?,?,?,?)', newId(), ctx.orgId, ctx.userId, model, answer.mode, encryptJson({ q, answer }, `ai:${ctx.orgId}`), now());
   return answer;
 }

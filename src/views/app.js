@@ -387,16 +387,16 @@ ${pageHead('Capital & Valuation', 'Deterministic decimal calculations with state
 }
 
 // ---------- Data room ----------
-export function dataroom({ ctx, nonce, project, docs, flash }) {
+export function dataroom({ ctx, nonce, project, docs, flash, maxMb = 15 }) {
   if (!project) return noProject(ctx, nonce, 'dataroom', 'Data Room');
   const folders = [...new Set(docs.map((d) => d.folder))];
   return shell({
     ctx, nonce, flash, active: 'dataroom', title: 'Data Room',
     body: html`
 ${pageHead('Data Room', 'Every file is encrypted with its own key, versioned immutably and access-logged. Watermarking and download controls reduce, but never eliminate, leakage risk.')}
-${can(ctx, 'document.upload') ? html`<form class="card form-grid" id="upload-form" data-upload action="/app/dataroom/upload" method="post">
+${can(ctx, 'document.upload') ? html`<form class="card form-grid" id="upload-form" data-upload data-max-mb="${maxMb}" action="/app/dataroom/upload" method="post">
   ${csrfField(ctx)}
-  <label>File (PDF, DOCX, XLSX, PPTX, PNG, JPG, CSV, TXT · max 15 MB)<input type="file" name="file" required></label>
+  <label>File (PDF, DOCX, XLSX, PPTX, PNG, JPG, CSV, TXT · max ${maxMb} MB)<input type="file" name="file" required></label>
   <label>Folder<input name="folder" value="General" maxlength="80" list="folders"><datalist id="folders">${['Corporate records', 'Financial statements', 'Material contracts', 'IP', 'Governance', 'Offering documents', 'Correspondence', ...folders].map((f) => html`<option value="${f}">`)}</datalist></label>
   <label>Classification<select name="classification">${Object.entries(CLASSIFICATIONS).filter(([k]) => canRead(ctx, k)).map(([k, v]) => html`<option value="${k}" ${k === 'confidential' ? raw('selected') : ''}>${v}</option>`)}</select></label>
   <div class="span-all form-actions"><button class="btn btn-gold" type="submit">Upload securely</button><span class="upload-status" aria-live="polite"></span></div>
@@ -407,7 +407,7 @@ ${folders.length ? folders.map((f) => html`<section class="card"><h2>${f}</h2><d
   });
 }
 
-export function documentView({ ctx, nonce, doc, versions, log, flash }) {
+export function documentView({ ctx, nonce, doc, versions, log, flash, maxMb = 15 }) {
   return shell({
     ctx, nonce, flash, active: 'dataroom', title: doc.name,
     body: html`
@@ -416,7 +416,7 @@ ${pageHead(doc.name, html`${doc.folder} · ${classBadge(doc.classification, CLAS
   <section class="card"><h2>Versions (immutable)</h2><div class="table-wrap"><table class="tbl"><thead><tr><th>Version</th><th>Uploaded</th><th>Size</th><th>SHA-256</th><th></th></tr></thead><tbody>
     ${versions.map((v) => html`<tr><td>v${v.version}</td><td>${fmtDate(v.at)}</td><td>${Math.ceil(v.size / 1024)} KB</td><td class="mono">${v.sha256.slice(0, 16)}…</td><td>${can(ctx, 'document.download') ? html`<a href="/app/dataroom/${doc.id}/download?v=${v.version}">Download</a>` : html`<span class="muted">View only</span>`}</td></tr>`)}
   </tbody></table></div>
-  ${can(ctx, 'document.upload') ? html`<form class="stack" data-upload action="/app/dataroom/upload" method="post">${csrfField(ctx)}<input type="hidden" name="documentId" value="${doc.id}"><input type="hidden" name="classification" value="${doc.classification}"><input type="hidden" name="folder" value="${doc.folder}"><label>Upload new version<input type="file" name="file" required></label><button class="btn btn-outline btn-sm" type="submit">Upload version</button><span class="upload-status" aria-live="polite"></span></form>` : ''}
+  ${can(ctx, 'document.upload') ? html`<form class="stack" data-upload data-max-mb="${maxMb}" action="/app/dataroom/upload" method="post">${csrfField(ctx)}<input type="hidden" name="documentId" value="${doc.id}"><input type="hidden" name="classification" value="${doc.classification}"><input type="hidden" name="folder" value="${doc.folder}"><label>Upload new version<input type="file" name="file" required></label><button class="btn btn-outline btn-sm" type="submit">Upload version</button><span class="upload-status" aria-live="polite"></span></form>` : ''}
   </section>
   <section class="stack-gap">
     <form class="card stack" method="post" action="/app/dataroom/${doc.id}/manage">${csrfField(ctx)}<h2>Controls</h2>

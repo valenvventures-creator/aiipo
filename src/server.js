@@ -4,7 +4,8 @@ import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { config, ROOT, IS_PROD } from './config.js';
+import { config, ROOT, IS_PROD, ensureMasterKey } from './config.js';
+import { init as initDb } from './db.js';
 import {
   Router, securityHeaders, nonce as makeNonce, parseCookies, parseBody, clientIp, HttpError, SESSION_COOKIE, serializeCookie, appendCookie, html, toHtml,
 } from './http.js';
@@ -88,7 +89,16 @@ export async function handle(req, res) {
   req.query = url.searchParams;
   req.ip = clientIp(req);
   req.cookies = parseCookies(req.headers.cookie);
-  req.session = loadSession(req.cookies[SESSION_COOKIE], req.headers['user-agent']);
+  try {
+    await ensureMasterKey();
+    await initDb();
+  } catch (e) {
+    console.error('[startup]', e.message);
+    res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+    res.writeHead(503);
+    return res.end('The service is starting up or not configured yet. Please try again shortly.');
+  }
+  req.session = await loadSession(req.cookies[SESSION_COOKIE], req.headers['user-agent']);
   // Double-submit CSRF token for anonymous forms (log in, sign up, reset).
   req.anonCsrf = req.cookies[ANON_CSRF];
   if (!req.anonCsrf || req.anonCsrf.length > 64) {
@@ -118,13 +128,13 @@ export async function handle(req, res) {
     const message = status >= 500 ? 'Something went wrong. Nothing was changed.' : e.message;
     if (res.headersSent) return res.end();
     if (pathname === '/app/dataroom/upload' || (req.method === 'POST' && pathname === '/app/guide')) return send(res, { status, json: { error: message } });
-    const ctx = req.session?.stage === 'full' ? safeCtx(req) : null;
+    const ctx = req.session?.stage === 'full' ? await safeCtx(req) : null;
     const page = ctx ? errorPage({ ctx, nonce: req.nonce, status, message }) : messagePage({ nonce: req.nonce, title: 'Error', heading: message, text: `Error ${status}.`, link: ['/', 'Go to home page'] });
     send(res, { status, html: page });
   }
 }
 
-function safeCtx(req) { try { return buildCtx(req); } catch { return null; } }
+async function safeCtx(req) { try { return await buildCtx(req); } catch { return null; } }
 
 export function start() {
   const server = http.createServer({ requestTimeout: 60_000, headersTimeout: 20_000, maxHeaderSize: 16 * 1024 }, handle);
@@ -134,7 +144,7 @@ export function start() {
     if (config.devOutbox) console.log(`[mail] Development outbox: ${config.baseUrl}/dev/outbox`);
     if (!config.mailAvailable) console.warn('[mail] No MAIL_WEBHOOK_URL: sign-up works without email verification; password reset and email invitations are disabled.');
   });
-  setInterval(() => { try { purgeExpiredDemos(); } catch (e) { console.error('[demo purge]', e.message); } }, 10 * 60e3).unref();
+  setInterval(() => { purgeExpiredDemos().catch((e) => console.error('[demo purge]', e.message)); }, 10 * 60e3).unref();
   const stop = () => server.close(() => process.exit(0));
   process.on('SIGTERM', stop);
   process.on('SIGINT', stop);

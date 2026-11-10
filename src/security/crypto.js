@@ -30,6 +30,7 @@ export function burnPasswordCheck(password) {
 
 const keyCache = new Map();
 function subkey(purpose) {
+  if (!config.masterKey) throw new Error('Encryption key not loaded (call ensureMasterKey first).');
   if (!keyCache.has(purpose)) {
     keyCache.set(purpose, Buffer.from(crypto.hkdfSync('sha256', config.masterKey, Buffer.alloc(0), `ta-ipo:${purpose}`, 32)));
   }

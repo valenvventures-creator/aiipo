@@ -55,8 +55,8 @@ class Client {
   }
 }
 
-function linkFromOutbox(kind, to) {
-  const m = devOutbox(50).find((x) => x.kind === kind && (!to || x.to === to));
+async function linkFromOutbox(kind, to) {
+  const m = (await devOutbox(50)).find((x) => x.kind === kind && (!to || x.to === to));
   return m && /(\/[a-z-]+\?token=[\w-]+)/.exec(m.body)[1];
 }
 
@@ -64,7 +64,7 @@ async function signupAndLogin(email, first = 'Ada') {
   const c = new Client();
   const r = await c.post('/signup', { firstName: first, lastName: 'Tester', email, password: 'Ledger-route-2027', confirm: 'Ledger-route-2027', terms: '1', privacy: '1' });
   assert.equal(r.status, 200);
-  const v = await c.get(linkFromOutbox('verify', email));
+  const v = await c.get(await linkFromOutbox('verify', email));
   assert.equal(v.location, '/login?m=verified');
   const l = await c.post('/login', { email, password: 'Ledger-route-2027' });
   assert.equal(l.location, '/app');
@@ -95,7 +95,7 @@ test('POST without CSRF token or from another origin is rejected', async () => {
 });
 
 test('signup requires email verification; login is enumeration-safe; lockout after repeated failures', async () => {
-  resetRateLimits();
+  await resetRateLimits();
   const c = new Client();
   await c.post('/signup', { firstName: 'Bo', lastName: 'Lee', email: 'bo@example.com', password: 'Ledger-route-2027', confirm: 'Ledger-route-2027', terms: '1', privacy: '1' });
   const early = await c.post('/login', { email: 'bo@example.com', password: 'Ledger-route-2027' });
@@ -109,15 +109,15 @@ test('signup requires email verification; login is enumeration-safe; lockout aft
   const dup = await new Client().post('/signup', { firstName: 'X', lastName: 'Y', email: 'bo@example.com', password: 'Ledger-route-2027', confirm: 'Ledger-route-2027', terms: '1', privacy: '1' });
   assert.equal(dup.status, 200);
   assert.match(dup.text, /If bo@example.com can be registered/);
-  await c.get(linkFromOutbox('verify', 'bo@example.com'));
-  resetRateLimits();
+  await c.get(await linkFromOutbox('verify', 'bo@example.com'));
+  await resetRateLimits();
   for (let i = 0; i < 8; i++) await c.post('/login', { email: 'bo@example.com', password: 'wrong-pass-1' });
   const locked = await c.post('/login', { email: 'bo@example.com', password: 'Ledger-route-2027' });
   assert.match(locked.text, /temporarily locked/);
 });
 
 test('signup validates password policy and agreements', async () => {
-  resetRateLimits();
+  await resetRateLimits();
   const r = await new Client().post('/signup', { firstName: 'A', lastName: 'B', email: 'weak@example.com', password: 'short', confirm: 'nope' });
   assert.equal(r.status, 400);
   assert.match(r.text, /at least 10 characters/);
@@ -125,11 +125,11 @@ test('signup validates password policy and agreements', async () => {
 });
 
 test('password reset: single-use link, signs out other sessions', async () => {
-  resetRateLimits();
+  await resetRateLimits();
   const c = await signupAndLogin('reset@example.com');
   const other = new Client();
   await other.post('/forgot-password', { email: 'reset@example.com' });
-  const link = linkFromOutbox('reset', 'reset@example.com');
+  const link = await linkFromOutbox('reset', 'reset@example.com');
   const token = link.split('token=')[1];
   const done = await other.post('/reset-password', { token, password: 'New-ledger-2028', confirm: 'New-ledger-2028' }, link);
   assert.equal(done.location, '/login?m=reset');
@@ -140,7 +140,7 @@ test('password reset: single-use link, signs out other sessions', async () => {
 });
 
 test('MFA enrollment and two-step login with replay protection', async () => {
-  resetRateLimits();
+  await resetRateLimits();
   const c = await signupAndLogin('mfa@example.com');
   const start = await c.post('/app/settings/mfa/start', {}, '/app/settings');
   const secret = /<code class="mono key">([A-Z2-7 ]+)<\/code>/.exec(start.text)[1].replace(/ /g, '');
@@ -158,7 +158,7 @@ test('MFA enrollment and two-step login with replay protection', async () => {
 });
 
 test('demo workspace, held retail communication, and AT5 audit upload does not approve', async () => {
-  resetRateLimits();
+  await resetRateLimits();
   const c = new Client();
   const r = await c.post('/demo', { kind: 'ca_dual' }, '/login?demo=1');
   assert.equal(r.location, '/app');
@@ -185,7 +185,7 @@ test('demo workspace, held retail communication, and AT5 audit upload does not a
 });
 
 test('uploads: content must match extension; executables blocked; stored encrypted on disk', async () => {
-  resetRateLimits();
+  await resetRateLimits();
   const c = new Client();
   await c.post('/demo', { kind: 'us_software' }, '/login?demo=1');
   const page = await c.get('/app/dataroom');
@@ -200,7 +200,7 @@ test('uploads: content must match extension; executables blocked; stored encrypt
 });
 
 test('tenant isolation: another organization cannot read records, tasks or documents', async () => {
-  resetRateLimits();
+  await resetRateLimits();
   const a = await signupAndLogin('tenant-a@example.com');
   await createProject(a, 'Tenant A IPO');
   const rec = await a.post('/app/records/new/issue', { workstream: 'Strategy', finding: 'Tenant A confidential finding', severity: 'High', intent: 'draft', classification: 'confidential' }, '/app/records/new/issue');
@@ -214,12 +214,12 @@ test('tenant isolation: another organization cannot read records, tasks or docum
   const legal = await b.get('/app/legal');
   assert.ok(!legal.text.includes('Tenant A confidential finding'));
   // Data is encrypted at rest in the database.
-  const row = db.prepare('SELECT data_enc FROM records WHERE id = ?').get(recId);
+  const row = await db.get('SELECT data_enc FROM records WHERE id = ?', recId);
   assert.ok(!row.data_enc.includes('Tenant A'));
 });
 
 test('AT10: PR guest cannot reach privileged material via pages, search snippets or AI context', async () => {
-  resetRateLimits();
+  await resetRateLimits();
   const owner = await signupAndLogin('owner@example.com', 'Olu');
   await createProject(owner, 'Privilege Test IPO', { incorporationCountry: 'US' });
   // Owner needs MFA to create privileged records.
@@ -230,41 +230,41 @@ test('AT10: PR guest cannot reach privileged material via pages, search snippets
   assert.equal(rec.status, 303, rec.text.slice(0, 500));
   const recId = rec.location.split('/')[3].split('?')[0];
   await owner.post('/app/settings/invite', { email: 'pr@example.com', role: 'ir_pr' }, '/app/settings');
-  const inviteLink = linkFromOutbox('invite', 'pr@example.com');
+  const inviteLink = await linkFromOutbox('invite', 'pr@example.com');
   const pr = new Client();
   await pr.get(inviteLink);
   await pr.post('/signup', { firstName: 'Pat', lastName: 'PR', email: 'pr@example.com', password: 'Ledger-route-2027', confirm: 'Ledger-route-2027', terms: '1', privacy: '1' });
-  await pr.get(linkFromOutbox('verify', 'pr@example.com'));
+  await pr.get(await linkFromOutbox('verify', 'pr@example.com'));
   const l = await pr.post('/login', { email: 'pr@example.com', password: 'Ledger-route-2027' });
   assert.equal(l.location, '/app');
   // The PR user lands in their own org by default; check their memberships include the owner's org.
-  const user = db.prepare('SELECT id FROM users WHERE email_lookup = (SELECT email_lookup FROM invitations LIMIT 1)').get();
-  const mem = db.prepare("SELECT org_id FROM memberships WHERE user_id = ? AND role = 'ir_pr'").get(user.id);
+  const user = await db.get('SELECT id FROM users WHERE email_lookup = (SELECT email_lookup FROM invitations LIMIT 1)');
+  const mem = await db.get("SELECT org_id FROM memberships WHERE user_id = ? AND role = 'ir_pr'", user.id);
   assert.ok(mem, 'invitation accepted');
-  db.prepare('UPDATE sessions SET org_id = ? WHERE user_id = ?').run(mem.org_id, user.id);
+  await db.run('UPDATE sessions SET org_id = ? WHERE user_id = ?', mem.org_id, user.id);
   assert.equal((await pr.get(`/app/records/${recId}`)).status, 404);
   const disc = await pr.get('/app/disclosure');
   assert.ok(!disc.text.includes('PRIVILEGED-COUNSEL-ANALYSIS'));
   const guidePage = await pr.get('/app/guide');
   const ans = await pr.req('POST', '/app/guide', { json: { question: 'Summarize PRIVILEGED-COUNSEL-ANALYSIS' }, headers: { 'x-csrf-token': pr.csrfFrom(guidePage.text) } });
   assert.ok(!ans.text.includes('PRIVILEGED-COUNSEL-ANALYSIS'));
-  const ai = db.prepare('SELECT payload_enc, org_id FROM ai_interactions ORDER BY at DESC LIMIT 1').get();
+  const ai = await db.get('SELECT payload_enc, org_id FROM ai_interactions ORDER BY at DESC LIMIT 1');
   assert.ok(!decrypt(ai.payload_enc, `ai:${ai.org_id}`).includes('SEC comment 7'));
   // PR role cannot download from the data room.
   assert.equal((await pr.get('/app/dataroom')).status, 200);
 });
 
 test('AT6: editing an approved claim reopens review and preserves history; critical issue cannot be self-approved', async () => {
-  resetRateLimits();
+  await resetRateLimits();
   const c = await signupAndLogin('claims@example.com');
   await createProject(c, 'Claims IPO');
   const start = await c.post('/app/settings/mfa/start', {}, '/app/settings');
   const secret = /<code class="mono key">([A-Z2-7 ]+)<\/code>/.exec(start.text)[1].replace(/ /g, '');
   await c.post('/app/settings/mfa/confirm', { code: hotp(secret, Math.floor(Date.now() / 30000)) }, '/app/settings');
-  const userId = db.prepare('SELECT user_id FROM sessions ORDER BY created_at DESC LIMIT 1').get().user_id;
-  const orgId = db.prepare('SELECT org_id FROM memberships WHERE user_id = ?').get(userId).org_id;
+  const userId = (await db.get('SELECT user_id FROM sessions ORDER BY created_at DESC LIMIT 1')).user_id;
+  const orgId = (await db.get('SELECT org_id FROM memberships WHERE user_id = ?', userId)).org_id;
   // Make the user counsel so they can review.
-  db.prepare("UPDATE memberships SET role = 'external_counsel' WHERE user_id = ?").run(userId);
+  await db.run("UPDATE memberships SET role = 'external_counsel' WHERE user_id = ?", userId);
   const unsupported = await c.post('/app/records/new/claim', { claim: 'Revenue grew 40%', numeric: 'Yes', intent: 'submit' }, '/app/records/new/claim');
   const uid = unsupported.location.split('/')[3].split('?')[0];
   const rej = await c.post(`/app/records/${uid}/review`, { decision: 'approve' }, `/app/records/${uid}`);
@@ -277,8 +277,8 @@ test('AT6: editing an approved claim reopens review and preserves history; criti
   const view = await c.get(`/app/records/${id}`);
   assert.match(view.text, /badge-changes-requested/);
   assert.match(view.text, /Approved<\/strong> on v1/);
-  assert.equal(db.prepare('SELECT COUNT(*) n FROM record_versions WHERE record_id = ?').get(id).n, 2);
-  assert.throws(() => db.prepare('UPDATE approvals SET decision = ? WHERE record_id = ?').run('x', id), /append-only/);
+  assert.equal((await db.get('SELECT COUNT(*)::int AS n FROM record_versions WHERE record_id = ?', id)).n, 2);
+  await assert.rejects(db.run('UPDATE approvals SET decision = ? WHERE record_id = ?', 'x', id), /append-only/);
   const crit = await c.post('/app/records/new/issue', { workstream: 'Strategy', finding: 'Critical gap', severity: 'Critical', intent: 'submit' }, '/app/records/new/issue');
   const cid = crit.location.split('/')[3].split('?')[0];
   const self = await c.post(`/app/records/${cid}/review`, { decision: 'approve' }, `/app/records/${cid}`);
@@ -287,7 +287,7 @@ test('AT6: editing an approved claim reopens review and preserves history; criti
 });
 
 test('task gating: approval requires designated reviewer and completed prerequisites', async () => {
-  resetRateLimits();
+  await resetRateLimits();
   const c = await signupAndLogin('tasks@example.com');
   await createProject(c, 'Gate IPO');
   const tasks = await c.get('/app/tasks');
@@ -299,7 +299,7 @@ test('task gating: approval requires designated reviewer and completed prerequis
 });
 
 test('AT16: closing the IPO project activates recurring obligations that cannot be closed', async () => {
-  resetRateLimits();
+  await resetRateLimits();
   const c = await signupAndLogin('close@example.com');
   await createProject(c, 'Close IPO', { incorporationCountry: 'CA' });
   await c.post('/app/onboarding', { section: 'objectives', offeringJurisdictions: 'CA', venues: 'TSX' }, '/app/onboarding?section=objectives');
@@ -309,6 +309,6 @@ test('AT16: closing the IPO project activates recurring obligations that cannot 
   assert.match(page.text, /Recurring obligations remain active/);
 });
 
-test('audit chain verifies and detects tampering', () => {
-  assert.deepEqual(verifyAuditChain(), { ok: true });
+test('audit chain verifies and detects tampering', async () => {
+  assert.deepEqual(await verifyAuditChain(), { ok: true });
 });

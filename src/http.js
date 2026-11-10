@@ -105,17 +105,24 @@ export async function parseBody(req, limit) {
   throw new HttpError(415, 'Unsupported content type.');
 }
 
-// ---------- Rate limiting (fixed window, in-memory; use a shared store when running multiple instances) ----------
-const buckets = new Map();
-export function rateLimit(key, max, windowMs) {
+// ---------- Rate limiting (fixed window, stored in the database so every serverless instance shares it) ----------
+export async function rateLimit(key, max, windowMs) {
+  const { db } = await import('./db.js');
+  const { hmac } = await import('./security/crypto.js');
   const t = Date.now();
-  let b = buckets.get(key);
-  if (!b || b.reset < t) { b = { count: 0, reset: t + windowMs }; buckets.set(key, b); }
-  b.count += 1;
-  if (buckets.size > 50_000) for (const [k, v] of buckets) if (v.reset < t) buckets.delete(k);
-  return { ok: b.count <= max, retryAfter: Math.ceil((b.reset - t) / 1000) };
+  const k = hmac(key, 'ratelimit').slice(0, 40); // never store raw IPs or identifiers
+  const row = await db.get(`INSERT INTO rate_limits (key, count, reset_at) VALUES (?, 1, ?)
+    ON CONFLICT (key) DO UPDATE SET
+      count = CASE WHEN rate_limits.reset_at < ? THEN 1 ELSE rate_limits.count + 1 END,
+      reset_at = CASE WHEN rate_limits.reset_at < ? THEN excluded.reset_at ELSE rate_limits.reset_at END
+    RETURNING count, reset_at`, k, t + windowMs, t, t);
+  if (Math.random() < 0.01) await db.run('DELETE FROM rate_limits WHERE reset_at < ?', t);
+  return { ok: row.count <= max, retryAfter: Math.max(1, Math.ceil((Number(row.reset_at) - t) / 1000)) };
 }
-export const resetRateLimits = () => buckets.clear();
+export async function resetRateLimits() {
+  const { db } = await import('./db.js');
+  await db.run('DELETE FROM rate_limits');
+}
 
 // ---------- Router ----------
 export class Router {

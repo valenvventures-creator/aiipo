@@ -34,7 +34,8 @@
       const status = form.querySelector('.upload-status');
       const file = form.querySelector('input[type=file]').files[0];
       if (!file) return;
-      if (file.size > 15 * 1024 * 1024) { status.textContent = 'File exceeds 15 MB.'; return; }
+      const maxMb = Number(form.dataset.maxMb || 15);
+      if (file.size > maxMb * 1024 * 1024) { status.textContent = `File exceeds ${maxMb} MB.`; return; }
       status.textContent = 'Encrypting and uploading…';
       const fd = new FormData(form);
       try {

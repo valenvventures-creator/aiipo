@@ -10,7 +10,7 @@ legal and accounting review**.
 
 ## Quick start
 
-Requires Node.js 22.13 or newer. The app has no runtime dependencies apart from the optional Anthropic SDK.
+Requires Node.js 22.13 or newer.
 
 ```bash
 npm install
@@ -22,75 +22,51 @@ npm run dev
 
 Open http://localhost:3000. In development:
 
+- Data is stored in an embedded Postgres database (PGlite) in `data/pglite`; no database server is needed.
 - Verification, reset and invitation emails appear at http://localhost:3000/dev/outbox (loopback only).
 - A local encryption key is generated at `data/.dev-master.key`.
-- If you use a plain-HTTP host other than `localhost`, set `COOKIE_SECURE=false`.
 
-Run the tests (23 unit tests and 14 end-to-end HTTP tests):
+Run the tests (unit, end-to-end over HTTP, and the no-email configuration):
 
 ```bash
 npm test
 ```
 
-### Static edition (index.html, e.g. for Netlify)
+## Hosting on Netlify
 
-`index.html` at the repository root is a single self-contained file: the full marketing site, the
-login, sign-up and reset pages, and an interactive in-browser demo (dashboard, roadmap and SOPs, route
-assessment, calculators, communications check, advisors, learning centre). It runs the same domain
-engines as the server, on fictional data only. Nothing is saved or sent.
+The app is hosted the same way as the other Thought Authorities sites, entirely on Netlify:
 
-**It has no accounts and stores no client data.** A static file cannot securely verify passwords or
-protect sensitive information, so its login and sign-up forms explain that accounts require the server
-edition below.
+| Piece | Netlify service |
+| --- | --- |
+| The app (pages, login, every workspace feature) | Netlify Functions (`netlify/functions/app.mjs`) |
+| Accounts, projects, records, audit trail | Netlify Database (Postgres; Netlify provides `NETLIFY_DB_URL`) |
+| Data-room documents (encrypted) | Netlify Blobs |
+| CSS, scripts, logo images | Netlify CDN (`public/`) |
+| Email (optional) | Resend, using `RESEND_API_KEY` and `EMAIL_FROM` |
 
-- Netlify: connect the repository. `netlify.toml` publishes only `index.html` (never the source code)
-  with a strict hash-based Content Security Policy.
-- After changing the source, regenerate it:
-  ```bash
-  npm run build:static
-  ```
+**Set-up**
+1. Connect this repository to a Netlify site (or keep your existing site linked to it). `netlify.toml`
+   configures everything; leave the build command and publish directory in the Netlify UI empty.
+2. Turn on **Netlify Database** for the site, as on your other sites. Netlify then provides
+   `NETLIFY_DB_URL` automatically. The tables are created on first use.
+3. Deploy. Every build runs the full test suite first, and a failing test stops the deploy.
 
-### Deploying the full app (server edition)
+Sign-up, login, MFA, the demo and every workspace feature then work on the site's own address.
 
-Accounts, login, MFA, projects and every workspace feature need the Node server running on a host with
-a persistent disk. Static hosts (Netlify alone, GitHub Pages) cannot run it.
+**Optional environment variables** (Netlify → Site configuration → Environment variables):
 
-**1. Run the server on Render** (blueprint included):
-1. In Render, choose **New → Blueprint** and select this repository.
-2. Approve the **Starter** plan; the persistent disk that keeps accounts and data needs a paid instance.
-3. Leave the optional values blank for now and deploy. Render generates `TA_MASTER_KEY` automatically;
-   copy it from the Environment tab and store it safely.
-4. Open the `onrender.com` address: sign-up, login and the demo all work there.
+| Variable | Purpose |
+| --- | --- |
+| `RESEND_API_KEY`, `EMAIL_FROM` | Turns on verification, password-reset and invitation emails (same names as the other sites). `EMAIL_FROM` must use a domain verified in Resend. |
+| `ANTHROPIC_API_KEY` | Turns on the Claude-powered A.I. guide (otherwise it runs in rule-based mode). |
+| `TA_MASTER_KEY` | Your own 256-bit encryption key (`npm run keygen`). If unset, one is generated once and kept in a private Netlify Blobs store, separate from the database. **Never change it once data exists**, or encrypted data becomes unreadable. |
 
-**2. Optional: keep using your Netlify address.** In Netlify, go to **Site configuration → Environment
-variables**, add `BACKEND_URL` = your `https://…onrender.com` address, and redeploy. Netlify then forwards
-every request to the server. In Render, set both `BASE_URL` and `ALLOWED_ORIGINS` to your Netlify address
-(for example `https://your-site.netlify.app`) and save.
+**Email.** Without Resend, sign-up activates accounts immediately without email verification, password-reset
+emails are disabled, and invitations show the admin a private link to share. Adding `RESEND_API_KEY` and
+`EMAIL_FROM` switches verification on automatically (`EMAIL_VERIFICATION=auto`; set it to `required` or
+`off` to override).
 
-**Email.** Without `MAIL_WEBHOOK_URL`, sign-up activates accounts immediately without email
-verification, password-reset emails are disabled, and invitations show the admin a private link to share.
-To turn email on, set `MAIL_WEBHOOK_URL=https://api.resend.com/emails`, set `MAIL_WEBHOOK_TOKEN` to a Resend
-API key, and set `MAIL_FROM` to an address on your verified domain. Verification then switches on
-automatically (`EMAIL_VERIFICATION=auto`; set it to `required` or `off` to override).
-
-Any other Node or Docker host with a persistent volume also works (Railway, Fly.io, a VPS) using the
-`Dockerfile` and the variables in `.env.example`.
-
-### Production
-
-1. Generate a master key, then store it in your secret manager (losing it makes encrypted data unrecoverable):
-   ```bash
-   npm run keygen
-   ```
-2. Set the variables in `.env.example`: `NODE_ENV=production`, `TA_MASTER_KEY`, `BASE_URL` (https),
-   `MAIL_WEBHOOK_URL` and its token, and `TRUST_PROXY=true` behind a TLS-terminating proxy.
-3. Run with the `Dockerfile` or `npm start`. Serve over HTTPS only.
-4. Back up the database regularly with the command below. Also back up `UPLOAD_DIR` (encrypted objects), and keep the key separate.
-   ```bash
-   npm run backup
-   ```
-5. Optional: set `ANTHROPIC_API_KEY` to enable the Claude-powered guide (model `claude-opus-5-5`, with
-   server-side refusal fallbacks enabled). Without it, the guide runs in a deterministic rule-based mode.
+**Limits.** Netlify Functions accept requests of up to 6 MB, so data-room uploads are limited to 4 MB per file.
 
 ## Brand and design
 
@@ -123,6 +99,7 @@ Any other Node or Docker host with a persistent volume also works (Railway, Fly.
 | A.I. guide (structured answers, permission-scoped context, source allow-list, interaction log) | **Working** (rule-based without an API key) |
 | Public company operations: obligations activated on close and cannot be erased | **Working.** Due dates stay provisional |
 | Demo workspaces (5 fictional companies, auto-purged after 2 hours) | **Working** |
+| Hosting: Netlify Functions + Netlify Database + Netlify Blobs | **Working** (tested locally against PostgreSQL 16 through the bundled function) |
 | Valuation workspace (comps, DCF), banker proposal comparison, KPI dictionary, controls matrix UI | **Planned (phase two)** |
 | Document generation (DOCX/PDF templates, closing binder), e-signature, EDGAR/SEDAR+ integrations | **Planned.** Filings are manual or professional-handled; no integration is claimed |
 | French localization, SSO/SCIM, data-room watermarking | **Planned** |
@@ -140,18 +117,22 @@ statement age service, external status records and restore drills.
 - Independent penetration test, accessibility audit (WCAG 2.2 AA target) and a privacy impact assessment
   (Canadian and US, including data residency and cross-border processing).
 - Final Terms and Privacy Policy from counsel (the current pages are drafts).
-- An antivirus engine for uploads, a shared rate-limit store if you run multiple instances, a tested
-  restore runbook, and a named owner for content updates.
+- An antivirus engine for uploads, a tested database restore runbook (Netlify Database backups), and a
+  named owner for content updates.
 
 ## Project layout
 
 ```
-src/server.js          HTTP server, headers, CSRF and origin checks, errors
+netlify/functions/     Netlify Function that runs the app
+netlify.toml           Netlify build, functions and headers
+src/server.js          request handling, headers, CSRF and origin checks, errors
+src/db.js              Postgres (Netlify Database in production, embedded PGlite locally)
+src/objects.js         encrypted document storage (Netlify Blobs / local folder)
 src/security/          crypto (scrypt, AES-256-GCM), TOTP, sessions/auth, RBAC, audit chain
 src/domain/            decimal, finance, routing, rules, stages/SOPs, forms, content, onboarding
 src/services.js        tenant-scoped projects, tasks, records, data room, plan
 src/routes/            auth and workspace routes
 src/views/             server-rendered, auto-escaped HTML
-public/                CSS, JS, brand assets
+public/                CSS, JS, brand assets (served by Netlify's CDN)
 test/                  unit and end-to-end tests
 ```

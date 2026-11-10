@@ -27,10 +27,10 @@ export function passwordProblems(password, email = '') {
   return p;
 }
 
-export function findUserByEmail(email) {
-  return db.prepare('SELECT * FROM users WHERE email_lookup = ?').get(emailLookup(email));
+export async function findUserByEmail(email) {
+  return await db.get('SELECT * FROM users WHERE email_lookup = ?', emailLookup(email));
 }
-export const getUser = (id) => db.prepare('SELECT * FROM users WHERE id = ?').get(id);
+export const getUser = async (id) => await db.get('SELECT * FROM users WHERE id = ?', id);
 
 export function userProfile(u) {
   if (!u) return null;
@@ -45,38 +45,36 @@ export function userProfile(u) {
   };
 }
 
-export function createUser({ email, firstName, lastName, password, verified = false, isDemo = false }) {
+export async function createUser({ email, firstName, lastName, password, verified = false, isDemo = false }) {
   const id = newId();
   const t = now();
-  db.prepare(`INSERT INTO users (id, email_lookup, email_enc, first_name_enc, last_name_enc, password_hash,
-      email_verified_at, is_demo, password_changed_at, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)`)
-    .run(id, emailLookup(email), encrypt(email.trim(), `user:${id}`), encrypt(firstName, `user:${id}`), encrypt(lastName, `user:${id}`),
+  await db.run(`INSERT INTO users (id, email_lookup, email_enc, first_name_enc, last_name_enc, password_hash,
+      email_verified_at, is_demo, password_changed_at, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)`, id, emailLookup(email), encrypt(email.trim(), `user:${id}`), encrypt(firstName, `user:${id}`), encrypt(lastName, `user:${id}`),
       hashPassword(password), verified ? t : null, isDemo ? 1 : 0, t, t, t);
-  return getUser(id);
+  return await getUser(id);
 }
 
-export function createOrg(name, { isDemo = false, demoExpiresAt = null } = {}) {
+export async function createOrg(name, { isDemo = false, demoExpiresAt = null } = {}) {
   const id = newId();
-  db.prepare('INSERT INTO orgs (id, name_enc, is_demo, demo_expires_at, created_at) VALUES (?,?,?,?,?)')
-    .run(id, encrypt(name, `org:${id}`), isDemo ? 1 : 0, demoExpiresAt, now());
+  await db.run('INSERT INTO orgs (id, name_enc, is_demo, demo_expires_at, created_at) VALUES (?,?,?,?,?)', id, encrypt(name, `org:${id}`), isDemo ? 1 : 0, demoExpiresAt, now());
   return id;
 }
 export const orgName = (org) => decrypt(org.name_enc, `org:${org.id}`);
-export const getOrg = (id) => db.prepare('SELECT * FROM orgs WHERE id = ?').get(id);
+export const getOrg = async (id) => await db.get('SELECT * FROM orgs WHERE id = ?', id);
 
-export function addMembership(orgId, userId, role) {
-  db.prepare('INSERT INTO memberships (id, org_id, user_id, role, created_at) VALUES (?,?,?,?,?)').run(newId(), orgId, userId, role, now());
+export async function addMembership(orgId, userId, role) {
+  await db.run('INSERT INTO memberships (id, org_id, user_id, role, created_at) VALUES (?,?,?,?,?)', newId(), orgId, userId, role, now());
 }
-export const membershipsFor = (userId) => db.prepare('SELECT m.*, o.name_enc, o.is_demo, o.require_mfa FROM memberships m JOIN orgs o ON o.id = m.org_id WHERE m.user_id = ? ORDER BY m.created_at').all(userId);
-export const membership = (orgId, userId) => db.prepare('SELECT * FROM memberships WHERE org_id = ? AND user_id = ?').get(orgId, userId);
+export const membershipsFor = async (userId) => await db.all('SELECT m.*, o.name_enc, o.is_demo, o.require_mfa FROM memberships m JOIN orgs o ON o.id = m.org_id WHERE m.user_id = ? ORDER BY m.created_at', userId);
+export const membership = async (orgId, userId) => await db.get('SELECT * FROM memberships WHERE org_id = ? AND user_id = ?', orgId, userId);
 
 /**
  * Verify credentials. Returns { user } or { error }. Messages never reveal whether an email exists.
  * Accounts are temporarily locked after repeated failures.
  */
-export function checkCredentials(email, password) {
+export async function checkCredentials(email, password) {
   const generic = { error: 'Email or password is incorrect.' };
-  const user = validateEmail(email) ? findUserByEmail(email) : null;
+  const user = validateEmail(email) ? await findUserByEmail(email) : null;
   if (!user) { burnPasswordCheck(password || 'x'); return generic; }
   if (user.locked_until && user.locked_until > now()) {
     burnPasswordCheck(password || 'x');
@@ -85,102 +83,99 @@ export function checkCredentials(email, password) {
   if (!verifyPassword(password || '', user.password_hash)) {
     const failed = user.failed_logins + 1;
     const lock = failed >= config.auth.maxFailedLogins ? new Date(Date.now() + config.auth.lockMinutes * 60000).toISOString() : null;
-    db.prepare('UPDATE users SET failed_logins = ?, locked_until = COALESCE(?, locked_until) WHERE id = ?').run(lock ? 0 : failed, lock, user.id);
+    await db.run('UPDATE users SET failed_logins = ?, locked_until = COALESCE(?, locked_until) WHERE id = ?', lock ? 0 : failed, lock, user.id);
     return { ...generic, userId: user.id, locked: Boolean(lock) };
   }
-  db.prepare('UPDATE users SET failed_logins = 0, locked_until = NULL WHERE id = ?').run(user.id);
+  await db.run('UPDATE users SET failed_logins = 0, locked_until = NULL WHERE id = ?', user.id);
   return { user };
 }
 
 // ---------- Sessions ----------
-export function createSession(userId, { remember = false, stage = 'full', orgId = null, ua = '', hours } = {}) {
+export async function createSession(userId, { remember = false, stage = 'full', orgId = null, ua = '', hours } = {}) {
   const token = randomToken(32);
   const t = new Date();
   const absMs = hours ? hours * 3600e3 : remember ? config.session.rememberDays * 86400e3 : config.session.absoluteHours * 3600e3;
   const expires = new Date(t.getTime() + (stage === 'mfa' ? 10 * 60e3 : absMs)).toISOString();
   const id = newId();
-  db.prepare(`INSERT INTO sessions (id, token_hash, user_id, org_id, csrf, stage, remember, created_at, last_seen, expires_at, ua_hash)
-    VALUES (?,?,?,?,?,?,?,?,?,?,?)`).run(id, sha256(token), userId, orgId, randomToken(24), stage, remember ? 1 : 0, t.toISOString(), t.toISOString(), expires, sha256(ua || ''));
+  await db.run(`INSERT INTO sessions (id, token_hash, user_id, org_id, csrf, stage, remember, created_at, last_seen, expires_at, ua_hash)
+    VALUES (?,?,?,?,?,?,?,?,?,?,?)`, id, sha256(token), userId, orgId, randomToken(24), stage, remember ? 1 : 0, t.toISOString(), t.toISOString(), expires, sha256(ua || ''));
   return { token, id, expires, remember };
 }
 
-export function loadSession(token, ua = '') {
+export async function loadSession(token, ua = '') {
   if (!token || token.length > 100) return null;
-  const s = db.prepare('SELECT * FROM sessions WHERE token_hash = ?').get(sha256(token));
+  const s = await db.get('SELECT * FROM sessions WHERE token_hash = ?', sha256(token));
   if (!s) return null;
   const t = Date.now();
   const idleMs = (s.remember ? 7 * 24 * 60 : config.session.idleMinutes) * 60e3;
   if (Date.parse(s.expires_at) < t || Date.parse(s.last_seen) + idleMs < t || s.ua_hash !== sha256(ua || '')) {
-    db.prepare('DELETE FROM sessions WHERE id = ?').run(s.id);
+    await db.run('DELETE FROM sessions WHERE id = ?', s.id);
     return null;
   }
-  if (t - Date.parse(s.last_seen) > 60e3) db.prepare('UPDATE sessions SET last_seen = ? WHERE id = ?').run(new Date(t).toISOString(), s.id);
+  if (t - Date.parse(s.last_seen) > 60e3) await db.run('UPDATE sessions SET last_seen = ? WHERE id = ?', new Date(t).toISOString(), s.id);
   return s;
 }
 
-export const destroySession = (id) => db.prepare('DELETE FROM sessions WHERE id = ?').run(id);
-export const destroyUserSessions = (userId, exceptId = '') => db.prepare('DELETE FROM sessions WHERE user_id = ? AND id != ?').run(userId, exceptId);
-export const setSessionOrg = (id, orgId) => db.prepare('UPDATE sessions SET org_id = ? WHERE id = ?').run(orgId, id);
+export const destroySession = async (id) => await db.run('DELETE FROM sessions WHERE id = ?', id);
+export const destroyUserSessions = async (userId, exceptId = '') => await db.run('DELETE FROM sessions WHERE user_id = ? AND id != ?', userId, exceptId);
+export const setSessionOrg = async (id, orgId) => await db.run('UPDATE sessions SET org_id = ? WHERE id = ?', orgId, id);
 
 // ---------- One-time tokens (email verification, password reset) ----------
-export function issueToken(userId, kind, minutes) {
+export async function issueToken(userId, kind, minutes) {
   const token = randomToken(32);
-  tx(() => {
-    db.prepare('UPDATE auth_tokens SET used_at = ? WHERE user_id = ? AND kind = ? AND used_at IS NULL').run(now(), userId, kind);
-    db.prepare('INSERT INTO auth_tokens (id, user_id, kind, token_hash, expires_at, created_at) VALUES (?,?,?,?,?,?)')
-      .run(newId(), userId, kind, sha256(token), new Date(Date.now() + minutes * 60e3).toISOString(), now());
+  await tx(async () => {
+    await db.run('UPDATE auth_tokens SET used_at = ? WHERE user_id = ? AND kind = ? AND used_at IS NULL', now(), userId, kind);
+    await db.run('INSERT INTO auth_tokens (id, user_id, kind, token_hash, expires_at, created_at) VALUES (?,?,?,?,?,?)', newId(), userId, kind, sha256(token), new Date(Date.now() + minutes * 60e3).toISOString(), now());
   });
   return token;
 }
 
-export function peekToken(token, kind) {
+export async function peekToken(token, kind) {
   if (!token || token.length > 100) return null;
-  const row = db.prepare('SELECT * FROM auth_tokens WHERE token_hash = ? AND kind = ?').get(sha256(token), kind);
+  const row = await db.get('SELECT * FROM auth_tokens WHERE token_hash = ? AND kind = ?', sha256(token), kind);
   if (!row || row.used_at || row.expires_at < now()) return null;
   return row;
 }
 
-export function consumeToken(token, kind) {
-  const row = peekToken(token, kind);
+export async function consumeToken(token, kind) {
+  const row = await peekToken(token, kind);
   if (!row) return null;
-  const r = db.prepare('UPDATE auth_tokens SET used_at = ? WHERE id = ? AND used_at IS NULL').run(now(), row.id);
+  const r = await db.run('UPDATE auth_tokens SET used_at = ? WHERE id = ? AND used_at IS NULL', now(), row.id);
   return r.changes === 1 ? row : null;
 }
 
-export function setPassword(userId, password) {
-  db.prepare('UPDATE users SET password_hash = ?, password_changed_at = ?, failed_logins = 0, locked_until = NULL, updated_at = ? WHERE id = ?')
-    .run(hashPassword(password), now(), now(), userId);
+export async function setPassword(userId, password) {
+  await db.run('UPDATE users SET password_hash = ?, password_changed_at = ?, failed_logins = 0, locked_until = NULL, updated_at = ? WHERE id = ?', hashPassword(password), now(), now(), userId);
 }
 
-export const markVerified = (userId) => db.prepare('UPDATE users SET email_verified_at = COALESCE(email_verified_at, ?) WHERE id = ?').run(now(), userId);
+export const markVerified = async (userId) => await db.run('UPDATE users SET email_verified_at = COALESCE(email_verified_at, ?) WHERE id = ?', now(), userId);
 
 // ---------- MFA ----------
-export function beginMfaEnrollment(userId) {
+export async function beginMfaEnrollment(userId) {
   const secret = generateSecret();
-  db.prepare('UPDATE users SET mfa_pending_secret_enc = ? WHERE id = ?').run(encrypt(secret, `mfa:${userId}`), userId);
+  await db.run('UPDATE users SET mfa_pending_secret_enc = ? WHERE id = ?', encrypt(secret, `mfa:${userId}`), userId);
   return secret;
 }
 
-export function confirmMfaEnrollment(userId, code) {
-  const u = getUser(userId);
+export async function confirmMfaEnrollment(userId, code) {
+  const u = await getUser(userId);
   const secret = decrypt(u.mfa_pending_secret_enc, `mfa:${userId}`);
   if (!secret) return null;
   const step = verifyTotp(secret, code);
   if (step === null) return null;
   const codes = Array.from({ length: 8 }, () => randomToken(6).replace(/[-_]/g, 'x').slice(0, 10));
-  db.prepare(`UPDATE users SET mfa_enabled = 1, mfa_secret_enc = ?, mfa_pending_secret_enc = NULL, mfa_last_step = ?, recovery_codes = ?, updated_at = ? WHERE id = ?`)
-    .run(encrypt(secret, `mfa:${userId}`), step, JSON.stringify(codes.map((c) => sha256(c))), now(), userId);
+  await db.run(`UPDATE users SET mfa_enabled = 1, mfa_secret_enc = ?, mfa_pending_secret_enc = NULL, mfa_last_step = ?, recovery_codes = ?, updated_at = ? WHERE id = ?`, encrypt(secret, `mfa:${userId}`), step, JSON.stringify(codes.map((c) => sha256(c))), now(), userId);
   return codes;
 }
 
-export function verifyMfa(userId, code) {
-  const u = getUser(userId);
+export async function verifyMfa(userId, code) {
+  const u = await getUser(userId);
   if (!u?.mfa_enabled) return false;
   const clean = String(code || '').replace(/\s/g, '');
   const secret = decrypt(u.mfa_secret_enc, `mfa:${userId}`);
-  const step = verifyTotp(secret, clean, { lastUsedStep: u.mfa_last_step });
+  const step = verifyTotp(secret, clean, { lastUsedStep: Number(u.mfa_last_step) });
   if (step !== null) {
-    db.prepare('UPDATE users SET mfa_last_step = ? WHERE id = ?').run(step, userId);
+    await db.run('UPDATE users SET mfa_last_step = ? WHERE id = ?', step, userId);
     return true;
   }
   // Single-use recovery code
@@ -188,12 +183,12 @@ export function verifyMfa(userId, code) {
   const idx = codes.indexOf(sha256(clean));
   if (idx >= 0) {
     codes.splice(idx, 1);
-    db.prepare('UPDATE users SET recovery_codes = ? WHERE id = ?').run(JSON.stringify(codes), userId);
+    await db.run('UPDATE users SET recovery_codes = ? WHERE id = ?', JSON.stringify(codes), userId);
     return true;
   }
   return false;
 }
 
-export function disableMfa(userId) {
-  db.prepare('UPDATE users SET mfa_enabled = 0, mfa_secret_enc = NULL, mfa_pending_secret_enc = NULL, recovery_codes = NULL, mfa_last_step = -1 WHERE id = ?').run(userId);
+export async function disableMfa(userId) {
+  await db.run('UPDATE users SET mfa_enabled = 0, mfa_secret_enc = NULL, mfa_pending_secret_enc = NULL, recovery_codes = NULL, mfa_last_step = -1 WHERE id = ?', userId);
 }
