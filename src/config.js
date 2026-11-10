@@ -52,8 +52,8 @@ export async function ensureMasterKey() {
 // Email verification: 'required' needs a working mail transport. 'auto' (default) requires it only when
 // email can actually be delivered (a mail provider is configured, or the development outbox is active).
 // Resend uses the same variable names as the other Thought Authorities sites (RESEND_API_KEY, EMAIL_FROM).
-const resend = Boolean(env.RESEND_API_KEY && env.EMAIL_FROM);
-const mailAvailable = resend || Boolean(env.MAIL_WEBHOOK_URL) || !IS_PROD;
+const resend = !IS_TEST && Boolean(env.RESEND_API_KEY && env.EMAIL_FROM);
+const mailAvailable = resend || (!IS_TEST && Boolean(env.MAIL_WEBHOOK_URL)) || !IS_PROD;
 const verifyMode = (env.EMAIL_VERIFICATION || 'auto').toLowerCase();
 
 export const config = {
@@ -62,11 +62,13 @@ export const config = {
   // Netlify sets URL to the site's primary address at runtime.
   baseUrl: (env.BASE_URL || env.URL || `http://localhost:${env.PORT || 3000}`).replace(/\/$/, ''),
   // Netlify Database connection (set by Netlify). Without it: embedded PGlite (memory in tests, folder in dev).
-  databaseUrl: env.NETLIFY_DB_URL || env.DATABASE_URL || '',
+  // Tests always use their own throwaway embedded database, never a real one.
+  databaseUrl: IS_TEST ? '' : (env.NETLIFY_DB_URL || env.DATABASE_URL || ''),
   pgliteDir: IS_TEST ? null : (env.PGLITE_DIR || path.join(ROOT, 'data', 'pglite')),
   allowEmbeddedDb: env.ALLOW_EMBEDDED_DB === 'true',
   // Data-room files: Netlify Blobs on Netlify, a local folder otherwise.
-  useBlobs: Boolean(env.NETLIFY_BLOBS_CONTEXT || env.NETLIFY || env.USE_NETLIFY_BLOBS === 'true'),
+  // Set by the Netlify Function at runtime (not during builds, where Blobs is unavailable).
+  useBlobs: !IS_TEST && env.USE_NETLIFY_BLOBS === 'true',
   uploadDir: env.UPLOAD_DIR || path.join(ROOT, 'data', 'objects'),
   masterKey: initialMasterKey(),
   // Secure cookies are on unless explicitly disabled for a non-localhost plain-HTTP dev host.
@@ -90,12 +92,12 @@ export const config = {
     from: env.EMAIL_FROM || env.MAIL_FROM || 'Thought Authorities <no-reply@localhost>',
     replyTo: env.EMAIL_REPLY_TO || '',
     // Resend (RESEND_API_KEY + EMAIL_FROM) or any HTTPS webhook that accepts {from,to,subject,text}.
-    webhookUrl: resend ? 'https://api.resend.com/emails' : (env.MAIL_WEBHOOK_URL || ''),
+    webhookUrl: resend ? 'https://api.resend.com/emails' : IS_TEST ? '' : (env.MAIL_WEBHOOK_URL || ''),
     webhookToken: resend ? env.RESEND_API_KEY.trim() : (env.MAIL_WEBHOOK_TOKEN || ''),
   },
   ai: {
     model: env.TA_AI_MODEL || 'claude-opus-5-5',
-    enabled: Boolean(env.ANTHROPIC_API_KEY || env.ANTHROPIC_AUTH_TOKEN),
+    enabled: !IS_TEST && Boolean(env.ANTHROPIC_API_KEY || env.ANTHROPIC_AUTH_TOKEN),
   },
   devOutbox: !IS_PROD,
   mailAvailable,

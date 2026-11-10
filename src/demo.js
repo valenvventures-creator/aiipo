@@ -1,5 +1,6 @@
 // Clearly fictional demo workspaces. Each visitor gets an isolated, short-lived tenant that is purged
 // automatically. Demo assumptions are labelled and are never legal conclusions.
+import crypto from 'node:crypto';
 import { db, now, tx, allowPurge } from './db.js';
 import { deleteObject } from './objects.js';
 import { config } from './config.js';
@@ -50,4 +51,39 @@ export async function purgeExpiredDemos() {
   });
   for (const name of objects) await deleteObject(name).catch(() => {});
   return expired.length;
+}
+
+// ---------- One-time cleanup of automated-test leftovers ----------
+// Early Netlify builds ran the test suite with the site's database available, which created a few test
+// accounts there. Those rows were encrypted with the test-only key, so they cannot be used, but they are
+// removed here. Matching uses the exact test addresses hashed with the test-only key, so a real account can
+// never match. Organizations left without any member are removed with them.
+const TEST_EMAILS = ['bo@example.com', 'claims@example.com', 'close@example.com', 'mfa@example.com', 'nia@example.com',
+  'owner@example.com', 'pr@example.com', 'reset@example.com', 'tasks@example.com', 'tenant-a@example.com', 'tenant-b@example.com'];
+
+function testKeyLookup(email) {
+  const key = crypto.createHash('sha256').update('test-only-key').digest();
+  const sub = Buffer.from(crypto.hkdfSync('sha256', key, Buffer.alloc(0), 'ta-ipo:email', 32));
+  return crypto.createHmac('sha256', sub).update(email.trim().toLowerCase()).digest('hex');
+}
+
+let cleanupDone = false;
+export async function purgeTestArtifacts() {
+  if (cleanupDone || config.databaseUrl === '') { cleanupDone = true; return 0; }
+  cleanupDone = true;
+  const flag = await db.get("SELECT value FROM ta_meta WHERE key = 'test_artifacts_purged_v1'");
+  if (flag) return 0;
+  let removed = 0;
+  await tx(async () => {
+    await allowPurge();
+    for (const email of TEST_EMAILS) removed += (await db.run('DELETE FROM users WHERE email_lookup = ?', testKeyLookup(email))).changes;
+    const orphans = await db.all('SELECT id FROM orgs WHERE is_demo = 0 AND NOT EXISTS (SELECT 1 FROM memberships m WHERE m.org_id = orgs.id)');
+    for (const { id } of orphans) {
+      for (const t of ['approvals', 'record_versions', 'task_events', 'document_versions', 'access_log', 'ai_interactions']) await db.run(`DELETE FROM ${t} WHERE org_id = ?`, id);
+      await db.run('DELETE FROM orgs WHERE id = ?', id);
+    }
+    await db.run("INSERT INTO ta_meta (key, value) VALUES ('test_artifacts_purged_v1', ?) ON CONFLICT (key) DO NOTHING", now());
+  });
+  if (removed) console.log(`[cleanup] Removed ${removed} leftover test account(s).`);
+  return removed;
 }

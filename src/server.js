@@ -16,7 +16,7 @@ import { register as registerApp, buildCtx } from './routes/app.js';
 import { landing, securityPage, legalPage } from './views/marketing.js';
 import { errorPage } from './views/app.js';
 import { messagePage } from './views/auth.js';
-import { purgeExpiredDemos } from './demo.js';
+import { purgeExpiredDemos, purgeTestArtifacts } from './demo.js';
 
 const PUBLIC = path.join(ROOT, 'public');
 const MIME = { '.css': 'text/css; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.png': 'image/png', '.svg': 'image/svg+xml', '.ico': 'image/x-icon', '.webp': 'image/webp', '.txt': 'text/plain; charset=utf-8' };
@@ -92,6 +92,7 @@ export async function handle(req, res) {
   try {
     await ensureMasterKey();
     await initDb();
+    await purgeTestArtifacts();
   } catch (e) {
     console.error('[startup]', e.message);
     res.setHeader('Content-Type', 'text/plain; charset=utf-8');
