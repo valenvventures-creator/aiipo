@@ -1,9 +1,11 @@
 import { html, raw } from '../http.js';
 import { ROLES } from '../security/permissions.js';
 
-const FONTS = 'https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Manrope:wght@400;500;600;700&display=swap';
+// Type system shared with the A.I. C-Level site: Sora (headlines), Manrope (body), Playfair Display italic
+// (accents), IBM Plex Mono (labels). Cormorant Garamond remains for the workspace headings.
+const FONTS = 'https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500&family=Manrope:wght@400;500;600;700&family=Playfair+Display:ital,wght@1,400;1,500&family=Sora:wght@500;600;700;800&display=swap';
 
-export function document({ title, body, nonce, bodyClass = '', description = 'Thought Authorities A.I. IPO - a guided workspace for Canadian and US IPO readiness, execution and public-company life.' }) {
+export function document({ title, body, nonce, bodyClass = '', extraCss = '', description = 'Thought Authorities A.I. IPO - a guided workspace for Canadian and US IPO readiness, execution and public-company life.' }) {
   return html`<!doctype html>
 <html lang="en">
 <head>
@@ -18,6 +20,7 @@ export function document({ title, body, nonce, bodyClass = '', description = 'Th
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="${FONTS}">
 <link rel="stylesheet" href="/css/site.css">
+${extraCss ? html`<link rel="stylesheet" href="${extraCss}">` : ''}
 <script src="/js/app.js" defer nonce="${nonce}"></script>
 </head>
 <body class="${bodyClass}">
@@ -39,35 +42,47 @@ export const brandLockup = (href = '/', { layout = 'h', size = 'md', tone = 'lig
   <span class="lk-text"><img class="lk-word" src="/brand/wordmark-600.png" alt="Thought Authorities" width="600" height="173"><span class="lk-sub"><span>A.I.&nbsp;IPO</span></span></span>
 </a>`;
 
+const ARROW = raw('<svg class="i-arrow" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8h9M8.5 4.5 12 8l-3.5 3.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>');
+export { ARROW };
+
 export function marketingShell({ body, nonce, title, session }) {
+  const links = [['The route', '/#route'], ['Calculator', '/#numbers'], ['Workspace', '/#workspace'], ['Security', '/#security'], ['FAQ', '/#faq']];
   return document({
-    title, nonce, bodyClass: 'mkt',
+    title, nonce, bodyClass: 'mkt bold', extraCss: '/css/landing.css',
     body: html`
-<header class="mkt-header">
-  <div class="wrap mkt-header-in">
+<div class="lp-progress" aria-hidden="true"><span data-progress></span></div>
+<header class="lp-nav" data-nav>
+  <div class="lp-wrap lp-nav-in">
     ${brandLockup('/', { layout: 'h', size: 'md', tone: 'light' })}
-    <nav class="mkt-nav" aria-label="Primary">
-      <a href="/#route">The route</a><a href="/#workspace">Workspace</a><a href="/#numbers">Numbers</a><a href="/#security">Security</a><a href="/#faq">FAQ</a>
-    </nav>
-    <div class="mkt-cta">
-      ${session ? html`<a class="btn btn-gold" href="/app">Open workspace</a>` : html`<a class="link-quiet" href="/login">Sign in</a><a class="btn btn-gold" href="/signup">Start your IPO plan</a>`}
+    <nav class="lp-links" aria-label="Primary">${links.map(([l, h]) => html`<a href="${h}">${l}</a>`)}</nav>
+    <div class="lp-nav-cta">
+      ${session
+    ? html`<a class="lp-btn lp-btn-gold lp-btn-sm" href="/app">Open workspace ${ARROW}</a>`
+    : html`<a class="lp-btn lp-btn-ghost lp-btn-sm lp-hide-sm" href="/login">Sign in</a><a class="lp-btn lp-btn-gold lp-btn-sm lp-hide-sm" href="/signup">Start your IPO plan ${ARROW}</a>`}
+      <button class="lp-burger" type="button" data-menu aria-expanded="false" aria-controls="lp-mobile" aria-label="Open menu"><span></span><span></span></button>
     </div>
   </div>
+  <nav class="lp-mobile" id="lp-mobile" aria-label="Mobile" hidden>
+    ${links.map(([l, h]) => html`<a href="${h}" data-menu-link>${l}</a>`)}
+    <div class="lp-mobile-cta">
+      ${session ? html`<a class="lp-btn lp-btn-gold" href="/app">Open workspace</a>` : html`<a class="lp-btn lp-btn-gold" href="/signup">Start your IPO plan</a><a class="lp-btn lp-btn-ghost" href="/login">Sign in</a>`}
+    </div>
+  </nav>
 </header>
 <main id="main">${body}</main>
-<footer class="mkt-footer">
-  <div class="wrap footer-grid">
-    <div>
-      ${brandLockup('/', { layout: 'v', size: 'md', tone: 'dark' })}
-      <p class="muted">Your IPO, organized by A.I. and decided by professionals.</p>
+<footer class="lp-footer">
+  <div class="lp-wrap lp-footer-grid">
+    <div class="lp-footer-brand">
+      ${brandLockup('/', { layout: 'v', size: 'md', tone: 'light' })}
+      <p>Your IPO, organized by A.I. and decided by professionals.</p>
     </div>
-    <div><h3>Product</h3><a href="/#route">The route</a><a href="/#workspace">Workspace</a><a href="/#numbers">Financial tools</a><a href="/security">Security</a></div>
-    <div><h3>Company</h3><a href="/legal/terms">Terms</a><a href="/legal/privacy">Privacy</a><a href="/#faq">FAQ</a></div>
-    <div><h3>Get in</h3><a href="/signup">Create an account</a><a href="/login">Sign in</a><a href="/login?demo=1">Live demo</a></div>
+    <div><p class="lp-mono">Product</p><a href="/#route">The route</a><a href="/#numbers">Calculator</a><a href="/#workspace">Workspace</a><a href="/security">Security</a></div>
+    <div><p class="lp-mono">Company</p><a href="/#faq">FAQ</a><a href="/legal/terms">Terms</a><a href="/legal/privacy">Privacy</a></div>
+    <div><p class="lp-mono">Get in</p><a href="/signup">Create an account</a><a href="/login">Sign in</a><a href="/login?demo=1">Live demo</a></div>
   </div>
-  <div class="wrap footer-legal">
+  <div class="lp-wrap lp-footer-legal">
     <p>© ${new Date().getFullYear()} Thought Authorities · A.I. IPO</p>
-    <p>Thought Authorities A.I. IPO is preparation and coordination software. It is not a law firm, accounting firm, dealer or exchange, does not provide legal, tax, audit or investment advice, and does not sell securities. The A.I. guide is an artificial-intelligence system and never represents itself as a licensed professional.</p>
+    <p>Preparation and coordination software. Not a law firm, accounting firm, dealer or exchange; no legal, tax, audit or investment advice; no securities are sold. The A.I. guide is an artificial-intelligence system and never represents itself as a licensed professional.</p>
   </div>
 </footer>`,
   });

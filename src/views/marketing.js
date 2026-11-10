@@ -1,5 +1,5 @@
-import { html } from '../http.js';
-import { marketingShell } from './layout.js';
+import { html, raw } from '../http.js';
+import { marketingShell, ARROW } from './layout.js';
 import { STAGES } from '../domain/stages.js';
 
 const FAQ = [
@@ -11,133 +11,232 @@ const FAQ = [
   ['Can we just look around first?', 'Yes. The live demo creates an isolated workspace for a clearly fictional company with seeded, labelled data. It is deleted automatically.'],
 ];
 
+// ---------- Hero route chart (server-rendered SVG; animated with CSS and SMIL, no inline styles) ----------
+const SHORT = ['Strategy', 'Team', 'Finance', 'Legal', 'Disclosure', 'Review', 'Marketing', 'Pricing', 'Closing', 'First 90 days', 'Public company'];
+function routeChart() {
+  const pts = SHORT.map((_, i) => {
+    const t = i / (SHORT.length - 1);
+    return [Math.round(70 + t * 470), Math.round(520 - (t ** 1.35) * 410 - Math.sin(t * Math.PI * 3) * 18)];
+  });
+  let d = `M ${pts[0][0]} ${pts[0][1]}`;
+  for (let i = 1; i < pts.length; i++) {
+    const [x0, y0] = pts[i - 1]; const [x1, y1] = pts[i];
+    const mx = (x0 + x1) / 2;
+    d += ` C ${mx} ${y0}, ${mx} ${y1}, ${x1} ${y1}`;
+  }
+  const grid = [];
+  for (let x = 40; x <= 600; x += 40) grid.push(html`<line x1="${x}" y1="40" x2="${x}" y2="560" />`);
+  for (let y = 40; y <= 560; y += 40) grid.push(html`<line x1="40" y1="${y}" x2="600" y2="${y}" />`);
+  return html`<svg class="rc" viewBox="0 0 640 600" role="img" aria-labelledby="rc-t">
+  <title id="rc-t">Illustration: the eleven stages of an IPO route, from strategic fit to operating as a public company</title>
+  <defs>
+    <linearGradient id="rc-gold" x1="0" x2="1" y1="1" y2="0"><stop offset="0" stop-color="#a77d0a"/><stop offset=".55" stop-color="#e9b51f"/><stop offset="1" stop-color="#f6d77a"/></linearGradient>
+    <radialGradient id="rc-glow"><stop offset="0" stop-color="#f2cf68" stop-opacity=".55"/><stop offset="1" stop-color="#f2cf68" stop-opacity="0"/></radialGradient>
+  </defs>
+  <g class="rc-grid">${grid}</g>
+  <path class="rc-shadow" d="${d}" />
+  <path id="rc-path" class="rc-path" d="${d}" pathLength="1000" />
+  ${pts.map(([x, y], i) => html`<g class="rc-node n${i} ${i === 10 ? 'rc-end' : ''}" tabindex="0" aria-label="Stage ${i}: ${SHORT[i]}">
+    ${i === 10 ? html`<circle class="rc-halo" cx="${x}" cy="${y}" r="46" fill="url(#rc-glow)" />` : ''}
+    <circle class="rc-hit" cx="${x}" cy="${y}" r="18" />
+    <circle class="rc-dot" cx="${x}" cy="${y}" r="${i === 10 ? 9 : 6}" />
+    <text class="rc-num" x="${x}" y="${y - 16}" text-anchor="middle">${String(i).padStart(2, '0')}</text>
+    <text class="rc-name" x="${i === 10 ? x + 10 : i > 6 ? x - 16 : x + 16}" y="${i === 10 ? y - 34 : y + 24}" text-anchor="${i > 6 ? 'end' : 'start'}">${SHORT[i].toUpperCase()}</text>
+  </g>`)}
+  <circle class="rc-pulse" r="5"><animateMotion dur="7s" repeatCount="indefinite" rotate="auto"><mpath href="#rc-path"/></animateMotion></circle>
+  <g class="rc-badge"><rect x="430" y="548" width="170" height="30" rx="15"/><text x="515" y="568" text-anchor="middle">ILLUSTRATIVE ROUTE</text></g>
+</svg>`;
+}
+
+const MARQUEE = ['Route assessment', 'FPI test', 'EGC · SRC · filer status', 'Claims ledger', 'Proceeds calculator', 'Dilution & ownership', 'Cash runway', 'Comms clearance', 'Encrypted data room', 'Comment response matrix', 'Closing checklist', 'Recurring obligations', 'MFA', 'Tamper-evident audit'];
+
+const BEFORE_AFTER = [
+  ['The spreadsheet', 'Four hundred rows across inboxes. Nobody is sure what is actually done.', 'Every task has an owner, a reviewer and the evidence that closes it.'],
+  ['The moving number', 'Revenue changes in the deck, and three other documents quietly disagree.', 'The claims ledger reopens every approval that relied on that number.'],
+  ['The eager post', 'Someone promotes the raise on social media before anything is filed.', 'Retail-directed promotion is held for counsel review automatically.'],
+  ['The day after', 'The deal closes and the reporting calendar arrives as a surprise.', 'Recurring obligations switch on the moment the IPO project closes.'],
+];
+
+function money(n) { return '$' + Number(n).toLocaleString('en-US', { maximumFractionDigits: 0 }); }
+
 export function landing({ nonce, session }) {
   return marketingShell({
     nonce, session, title: 'Your IPO, organized',
     body: html`
-<section class="hero">
-  <div class="wrap hero-grid">
-    <div class="hero-copy">
-      <p class="eyebrow">Thought Authorities · A.I. IPO</p>
-      <h1>Go public with a plan you can <em>defend</em>.</h1>
-      <p class="lede">One workspace for Canadian and US IPOs. Map your route, see the next required action, assemble the evidence, and move it through the right professional review - from first board discussion to your first year as a public company.</p>
-      <div class="hero-actions">
-        <a class="btn btn-gold btn-lg" href="/signup">Start your IPO plan</a>
-        <a class="btn btn-outline btn-lg" href="/login?demo=1">Explore the live demo</a>
+<section class="lp-hero">
+  <div class="lp-hero-glow" aria-hidden="true"></div>
+  <div class="lp-wrap lp-hero-grid">
+    <div class="lp-hero-copy">
+      <p class="lp-eyebrow lp-in d0">Thought Authorities · A.I. IPO</p>
+      <h1 class="lp-h1 lp-in d1">Go public<br>with a plan<br><span class="lp-accent">you can <span class="lp-underline">defend.</span></span></h1>
+      <p class="lp-lede lp-in d2">One workspace for Canadian and US IPOs. Map your route, see the next required action, assemble the evidence and move it through the right professional review - from the first board discussion to your first year as a public company.</p>
+      <div class="lp-actions lp-in d3">
+        <a class="lp-btn lp-btn-ink lp-btn-lg" href="/signup">Start your IPO plan ${ARROW}</a>
+        <a class="lp-btn lp-btn-ghost lp-btn-lg" href="/login?demo=1">Explore the live demo</a>
       </div>
-      <p class="fine">Preparation software, not legal or investment advice. Every conclusion is routed to a qualified professional.</p>
+      <p class="lp-meta lp-in d4"><span class="lp-dot"></span>Eleven stages · Two markets · Verified evidence</p>
     </div>
-    <div class="hero-card" aria-label="Example route ledger (illustrative)">
-      <div class="ledger-head"><span>Route ledger</span><span class="tag-illus">Illustrative example</span></div>
-      <ol class="ledger">
-        <li class="done"><span class="l-n">0</span><span>Strategic fit</span><span class="l-s">Board approved</span></li>
-        <li class="done"><span class="l-n">1</span><span>Route &amp; team</span><span class="l-s">Counsel reviewed</span></li>
-        <li class="now"><span class="l-n">2</span><span>Finance &amp; audit</span><span class="l-s">3 of 4 complete</span></li>
-        <li class="block"><span class="l-n">3</span><span>Legal &amp; governance</span><span class="l-s">1 critical blocker</span></li>
-        <li><span class="l-n">4</span><span>Disclosure</span><span class="l-s">Not started</span></li>
-      </ol>
-      <div class="ledger-foot"><strong>Next:</strong> Reconcile 2021 option grants to board approvals → <em>Counsel review</em></div>
+    <div class="lp-hero-art lp-in d2" data-parallax>${routeChart()}</div>
+  </div>
+  <a class="lp-scroll" href="#marquee" aria-label="Scroll to content"><span>Scroll</span><i></i></a>
+</section>
+
+<section class="lp-marquee" id="marquee" aria-label="Capabilities">
+  <div class="lp-marquee-track">
+    ${[0, 1].map((k) => html`<div class="lp-marquee-row" ${k ? raw('aria-hidden="true"') : ''}>${MARQUEE.map((m) => html`<span>${m}<i></i></span>`)}</div>`)}
+  </div>
+</section>
+
+<section class="lp-section" id="problems">
+  <div class="lp-wrap">
+    <div data-reveal>
+      <p class="lp-eyebrow">Where IPO preparation breaks</p>
+      <h2 class="lp-h2">Things every founder <span class="lp-accent">learns the hard way</span></h2>
+      <p class="lp-sub">And how A.I. IPO changes each one. Flip the switch.</p>
     </div>
-  </div>
-</section>
-
-<section class="strip" aria-label="Coverage">
-  <div class="wrap strip-in">
-    <span>TSX</span><span>TSX Venture</span><span>CSE</span><span>Cboe Canada</span><span>Nasdaq</span><span>NYSE</span><span>NYSE American</span>
-  </div>
-  <p class="wrap strip-note">Venue names are listed for comparison only. No affiliation, endorsement or approval is implied.</p>
-</section>
-
-<section class="section" id="route">
-  <div class="wrap">
-    <p class="eyebrow">The route</p>
-    <h2>Eleven stages. Every gate explained.</h2>
-    <p class="section-lede">Each stage has a populated procedure - owner, inputs, steps, evidence, reviewer and exit criteria. Gates stay closed until the evidence is there, and a material change reopens what it affects.</p>
-    <ol class="stage-rail">
-      ${STAGES.map((s) => html`<li><span class="rail-n">${s.n}</span><span class="rail-name">${s.name}</span><span class="rail-owner">${s.owner}</span></li>`)}
-    </ol>
-  </div>
-</section>
-
-<section class="section section-ink" id="routes">
-  <div class="wrap">
-    <p class="eyebrow eyebrow-gold">Jurisdiction routing</p>
-    <h2>Incorporation is not destiny.</h2>
-    <p class="section-lede">Where you are incorporated, where you are run from, where you offer and where you list are separate facts. The routing engine keeps them separate - and shows what it does not yet know.</p>
-    <div class="route-cards">
-      <article><h3>Canadian conventional IPO</h3><p>Provincial and territorial prospectus, exchange application, underwriting and continuous disclosure. Principal regulator confirmed with counsel.</p></article>
-      <article><h3>US domestic IPO</h3><p>Registration statement, SEC review, FINRA where applicable, exchange listing and Exchange Act reporting - with EGC, SRC and filer status assessed separately.</p></article>
-      <article><h3>Canadian company in the US</h3><p>A real foreign private issuer test, not an assumption. MJDS screened on its own conditions - a newly public company is not automatically eligible.</p></article>
-      <article><h3>Concurrent Canada &amp; US</h3><p>Both sets of obligations, currencies, selling restrictions and settlement in one coordinated plan with a conflict log.</p></article>
+    <div class="lp-toggle" data-reveal data-delay="100">
+      <span class="lp-toggle-label" data-label-before>Without A.I. IPO</span>
+      <button class="lp-switch" type="button" role="switch" aria-checked="true" aria-label="Show with A.I. IPO" data-ba-switch><span></span></button>
+      <span class="lp-toggle-label is-on" data-label-after>With A.I. IPO</span>
+    </div>
+    <div class="lp-ba-grid is-after" data-ba-grid>
+      ${BEFORE_AFTER.map(([t, before, after], i) => html`<article class="lp-ba" data-reveal data-delay="${i * 80}">
+        <p class="lp-mono">0${i + 1} · ${t}</p>
+        <p class="lp-ba-before">${before}</p>
+        <p class="lp-ba-after">${after}</p>
+      </article>`)}
     </div>
   </div>
 </section>
 
-<section class="section" id="workspace">
-  <div class="wrap">
-    <p class="eyebrow">The workspace</p>
-    <h2>Real records, not a reading list.</h2>
-    <div class="bento">
-      <article class="b-wide"><h3>Your next three actions</h3><p>The dashboard shows the active stage, unblocked work, critical blockers, waiting reviews and what changed - without a misleading single readiness percentage.</p></article>
-      <article><h3>Claims ledger</h3><p>Every material number in your disclosure is linked to its source. Change it, and every dependent approval reopens.</p></article>
-      <article><h3>Communications clearance</h3><p>Retail promotion before filing is held for counsel automatically. Institutional testing-the-waters stays available where permitted.</p></article>
-      <article><h3>Secure data room</h3><p>Folder classifications, encrypted versions, legal holds, access logs and content screening.</p></article>
-      <article><h3>Advisor directory</h3><p>Verification routes to official registries. "Official source" is never confused with "credentials checked".</p></article>
-      <article class="b-wide"><h3>Public company operations</h3><p>Closing the IPO project activates recurring obligations. They cannot be erased by marking a project complete.</p></article>
+<section class="lp-section lp-section-tint" id="route">
+  <div class="lp-wrap">
+    <div data-reveal>
+      <p class="lp-eyebrow">The route</p>
+      <h2 class="lp-h2">Eleven stages. <span class="lp-accent">Every gate explained.</span></h2>
+      <p class="lp-sub">Each stage has a populated procedure - owner, inputs, steps, evidence, reviewer and exit criteria. Select a stage.</p>
+    </div>
+    <div class="lp-stages" data-stages data-reveal data-delay="120">
+      <div class="lp-stage-tabs" role="tablist" aria-label="IPO stages">
+        ${STAGES.map((s, i) => html`<button type="button" role="tab" id="st-tab-${i}" aria-controls="st-panel-${i}" aria-selected="${i === 0 ? 'true' : 'false'}" tabindex="${i === 0 ? '0' : '-1'}" class="lp-stage-tab"><span class="lp-stage-n">${String(s.n).padStart(2, '0')}</span><span class="lp-stage-name">${SHORT[i]}</span></button>`)}
+        <span class="lp-stage-bar" aria-hidden="true"><span data-stage-progress></span></span>
+      </div>
+      ${STAGES.map((s, i) => html`<div class="lp-stage-panel" role="tabpanel" id="st-panel-${i}" aria-labelledby="st-tab-${i}" ${i ? raw('hidden') : ''}>
+        <div><p class="lp-mono">Stage ${String(s.n).padStart(2, '0')} · ${s.sop.id}</p><h3>${s.name}</h3><p>${s.sop.purpose}</p></div>
+        <dl>
+          <div><dt>Owner</dt><dd>${s.owner}</dd></div>
+          <div><dt>Reviewer</dt><dd>${s.sop.responsibility.reviewer}</dd></div>
+          <div><dt>Exit evidence</dt><dd>${s.exit}</dd></div>
+        </dl>
+      </div>`)}
     </div>
   </div>
 </section>
 
-<section class="section section-parch" id="numbers">
-  <div class="wrap numbers-grid">
-    <div>
-      <p class="eyebrow">Numbers you can defend</p>
-      <h2>Company cash is not deal size.</h2>
-      <p class="section-lede">Deterministic decimal engines separate primary and secondary shares, the over-allotment option and who bears which costs - with formulas and assumptions exported alongside every result.</p>
-      <a class="btn btn-outline" href="/login?demo=1">Try the calculator in the demo</a>
+<section class="lp-section" id="routes">
+  <div class="lp-wrap">
+    <div data-reveal>
+      <p class="lp-eyebrow">Jurisdiction routing</p>
+      <h2 class="lp-h2">Incorporation <span class="lp-accent">is not destiny</span></h2>
+      <p class="lp-sub">Where you are incorporated, where you are run from, where you offer and where you list are separate facts. The routing engine keeps them separate - and shows what it does not yet know.</p>
     </div>
-    <table class="calc-sample">
-      <caption>Worked example (illustrative assumptions)</caption>
-      <tbody>
-        <tr><th scope="row">Pre-offering shares</th><td>10,000,000</td></tr>
-        <tr><th scope="row">New company shares / selling-holder shares</th><td>2,000,000 / 1,000,000</td></tr>
-        <tr><th scope="row">Price</th><td>$10.00</td></tr>
-        <tr><th scope="row">Company gross proceeds</th><td>$20,000,000</td></tr>
-        <tr><th scope="row">Selling-holder gross proceeds</th><td>$10,000,000 <span class="muted">(not company cash)</span></td></tr>
-        <tr class="em"><th scope="row">Company net (6% discount, $1M expenses)</th><td>$17,800,000</td></tr>
-        <tr><th scope="row">Post-offering shares</th><td>12,000,000</td></tr>
-      </tbody>
-    </table>
-  </div>
-</section>
-
-<section class="section" id="security">
-  <div class="wrap">
-    <p class="eyebrow">Security</p>
-    <h2>Built for material non-public information.</h2>
-    <div class="sec-grid">
-      <article><h3>Encrypted twice over</h3><p>TLS in transit. Sensitive fields and every file encrypted at rest with AES-256-GCM, bound to your organization.</p></article>
-      <article><h3>Least privilege</h3><p>Twelve roles and seven information classifications. A PR guest cannot reach privileged material through pages, search, exports or the A.I. guide.</p></article>
-      <article><h3>Strong sign-in</h3><p>scrypt password hashing, authenticator-app MFA, lockout after repeated failures, short browser-bound sessions.</p></article>
-      <article><h3>Tamper-evident trail</h3><p>Hash-chained audit events and append-only approvals and versions. Approved history is never overwritten.</p></article>
+    <div class="lp-cards lp-cards-4">
+      ${[
+    ['CA', 'Canadian conventional IPO', 'Provincial and territorial prospectus, exchange application, underwriting and continuous disclosure.'],
+    ['US', 'US domestic IPO', 'Registration statement, SEC review, FINRA where applicable - with EGC, SRC and filer status assessed separately.'],
+    ['FPI', 'Canadian company in the US', 'A real foreign private issuer test, not an assumption. MJDS screened on its own conditions.'],
+    ['CA + US', 'Concurrent Canada & US', 'Both sets of obligations, currencies, selling restrictions and settlement in one coordinated plan.'],
+  ].map(([tag, t, d], i) => html`<article class="lp-card" data-reveal data-delay="${i * 80}"><span class="lp-card-glow" aria-hidden="true"></span><p class="lp-tag">${tag}</p><h3>${t}</h3><p>${d}</p></article>`)}
     </div>
-    <p><a class="link-arrow" href="/security">Read the security overview</a></p>
   </div>
 </section>
 
-<section class="section section-parch" id="faq">
-  <div class="wrap narrow">
-    <p class="eyebrow">Questions, answered</p>
-    <h2>Before you begin</h2>
-    ${FAQ.map(([q, a]) => html`<details class="faq"><summary>${q}</summary><p>${a}</p></details>`)}
+<section class="lp-section lp-section-tint" id="numbers">
+  <div class="lp-wrap lp-calc-grid">
+    <div data-reveal>
+      <p class="lp-eyebrow">Live calculator</p>
+      <h2 class="lp-h2">Company cash <span class="lp-accent">is not deal size</span></h2>
+      <p class="lp-sub">Move the sliders. New shares bring cash to the company; shares sold by existing holders do not. The workspace runs the full calculators on exact decimal engines, with formulas and exports.</p>
+      <a class="lp-btn lp-btn-ink" href="/login?demo=1">Open the full calculators ${ARROW}</a>
+    </div>
+    <form class="lp-calc" data-calc data-reveal data-delay="120" aria-label="Offering proceeds calculator (illustrative)">
+      <div class="lp-calc-inputs">
+        ${[
+    ['pre', 'Pre-offering shares', 1_000_000, 50_000_000, 500_000, 10_000_000, 'shares'],
+    ['primary', 'New company shares', 0, 20_000_000, 250_000, 2_000_000, 'shares'],
+    ['secondary', 'Shares sold by existing holders', 0, 10_000_000, 250_000, 1_000_000, 'shares'],
+    ['price', 'Price per share', 1, 50, 0.5, 10, 'usd'],
+    ['discount', 'Underwriting discount', 0, 10, 0.25, 6, 'pct'],
+    ['expenses', 'Company offering expenses', 0, 5_000_000, 100_000, 1_000_000, 'usd0'],
+  ].map(([k, l, min, max, step, v, unit]) => html`<label class="lp-range"><span class="lp-range-top"><span>${l}</span><output data-out="${k}" data-unit="${unit}">${unit === 'usd' ? '$' + Number(v).toFixed(2) : unit === 'pct' ? v + '%' : unit === 'usd0' ? money(v) : Number(v).toLocaleString('en-US')}</output></span>
+          <input type="range" name="${k}" min="${min}" max="${max}" step="${step}" value="${v}"></label>`)}
+      </div>
+      <div class="lp-calc-results" aria-live="polite">
+        <div class="lp-result lp-result-main"><p class="lp-mono">Company net proceeds</p><p class="lp-big" data-res="net">$17,800,000</p></div>
+        <div class="lp-result"><p class="lp-mono">Company gross</p><p data-res="gross">$20,000,000</p></div>
+        <div class="lp-result"><p class="lp-mono">To selling holders (not company cash)</p><p data-res="seller">$10,000,000</p></div>
+        <div class="lp-result"><p class="lp-mono">Post-offering shares</p><p data-res="post">12,000,000</p></div>
+        <div class="lp-result"><p class="lp-mono">A non-participating holder keeps</p><p data-res="keep">83.33% of their stake</p></div>
+        <p class="lp-fine">Illustrative assumptions. Discount and expenses are inputs, not fee recommendations. Excludes taxes, the over-allotment option and currency effects.</p>
+      </div>
+    </form>
   </div>
 </section>
 
-<section class="closing">
-  <div class="wrap closing-in">
-    <img src="/brand/crest-256.png" alt="" width="128" height="78">
-    <h2>Your route to market starts with one honest plan.</h2>
-    <a class="btn btn-gold btn-lg" href="/signup">Start your IPO plan</a>
+<section class="lp-section" id="workspace">
+  <div class="lp-wrap">
+    <div data-reveal>
+      <p class="lp-eyebrow">The workspace</p>
+      <h2 class="lp-h2">Real records, <span class="lp-accent">not a reading list</span></h2>
+    </div>
+    <div class="lp-bento">
+      ${[
+    ['wide', 'Your next three actions', 'The dashboard shows the active stage, unblocked work, critical blockers and waiting reviews - without a misleading single readiness percentage.'],
+    ['', 'Claims ledger', 'Every material number in your disclosure is linked to its source. Change it, and every dependent approval reopens.'],
+    ['', 'Communications clearance', 'Retail promotion before filing is held for counsel. Institutional testing-the-waters stays available where permitted.'],
+    ['', 'Encrypted data room', 'Classifications, immutable versions, legal holds, access logs and content screening.'],
+    ['', 'Advisor directory', 'Verification routes to official registries. "Official source" is never confused with "credentials checked".'],
+    ['wide', 'Public company operations', 'Closing the IPO project activates recurring obligations. They cannot be erased by marking a project complete.'],
+  ].map(([w, t, d], i) => html`<article class="lp-card ${w ? 'lp-wide' : ''}" data-reveal data-delay="${(i % 3) * 80}"><span class="lp-card-glow" aria-hidden="true"></span><p class="lp-mono">0${i + 1}</p><h3>${t}</h3><p>${d}</p></article>`)}
+    </div>
+  </div>
+</section>
+
+<section class="lp-section lp-section-tint" id="security">
+  <div class="lp-wrap">
+    <div data-reveal>
+      <p class="lp-eyebrow">Private by architecture</p>
+      <h2 class="lp-h2">Built for <span class="lp-accent">material non-public</span> information</h2>
+    </div>
+    <div class="lp-cards lp-cards-4">
+      ${[
+    ['M12 3 4 6v6c0 4.5 3.4 8.4 8 9 4.6-.6 8-4.5 8-9V6l-8-3Z', 'Encrypted twice over', 'TLS in transit. Sensitive fields and every file encrypted at rest with AES-256-GCM, bound to your organization.'],
+    ['M7 11V8a5 5 0 0 1 10 0v3M5 11h14v10H5z', 'Strong sign-in', 'scrypt password hashing, authenticator-app MFA, lockout after repeated failures, short browser-bound sessions.'],
+    ['M4 6h16M4 12h16M4 18h10', 'Least privilege', 'Twelve roles and seven classifications. A PR guest cannot reach privileged material through pages, exports or the A.I. guide.'],
+    ['M9 12l2 2 4-4M4 4h16v16H4z', 'Tamper-evident trail', 'Hash-chained audit events and append-only approvals and versions. Approved history is never overwritten.'],
+  ].map(([d, t, b], i) => html`<article class="lp-card" data-reveal data-delay="${i * 80}"><span class="lp-card-glow" aria-hidden="true"></span><svg class="lp-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="${d}"/></svg><h3>${t}</h3><p>${b}</p></article>`)}
+    </div>
+    <p data-reveal><a class="lp-link" href="/security">Read the security overview ${ARROW}</a></p>
+  </div>
+</section>
+
+<section class="lp-section" id="faq">
+  <div class="lp-wrap lp-narrow">
+    <h2 class="lp-h2 lp-center" data-reveal>Questions, <span class="lp-accent">answered</span></h2>
+    <div class="lp-faq">
+      ${FAQ.map(([q, a], i) => html`<details class="lp-faq-item" data-reveal data-delay="${i * 50}"><summary>${q}<span class="lp-plus" aria-hidden="true">+</span></summary><p>${a}</p></details>`)}
+    </div>
+  </div>
+</section>
+
+<section class="lp-closing">
+  <div class="lp-wrap lp-center" data-reveal>
+    <h2 class="lp-h1">Your route to market<br><span class="lp-accent">starts here</span></h2>
+    <p class="lp-sub lp-center-sub">One plan. Every requirement. Verified evidence.</p>
+    <div class="lp-actions lp-actions-center">
+      <a class="lp-btn lp-btn-ink lp-btn-lg" href="/signup">Start your IPO plan ${ARROW}</a>
+      <a class="lp-btn lp-btn-ghost lp-btn-lg" href="/login?demo=1">Explore the live demo</a>
+    </div>
   </div>
 </section>`,
   });

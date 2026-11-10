@@ -89,3 +89,160 @@
   function el(tag, text, cls) { const n = document.createElement(tag); n.textContent = text == null ? '' : String(text); if (cls) n.className = cls; return n; }
   function list(items) { const ul = document.createElement('ul'); (items || []).forEach((i) => ul.append(el('li', i))); if (!ul.children.length) ul.append(el('li', 'None')); return ul; }
 })();
+
+// ---------------- Public pages: bold interactions (progressive enhancement) ----------------
+(function () {
+  'use strict';
+  if (!document.body.classList.contains('bold')) return;
+  const root = document.documentElement;
+  root.classList.add('js');
+  const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  // Header: frosted once scrolled; gold page-progress line.
+  const nav = document.querySelector('[data-nav]');
+  const bar = document.querySelector('[data-progress]');
+  let ticking = false;
+  const onScroll = () => {
+    ticking = false;
+    const y = window.scrollY;
+    if (nav) nav.classList.toggle('is-scrolled', y > 12);
+    if (bar) { const max = document.documentElement.scrollHeight - window.innerHeight; bar.style.transform = `scaleX(${max > 0 ? y / max : 0})`; }
+  };
+  window.addEventListener('scroll', () => { if (!ticking) { ticking = true; requestAnimationFrame(onScroll); } }, { passive: true });
+  onScroll();
+
+  // Mobile menu.
+  const burger = document.querySelector('[data-menu]');
+  const mobile = document.getElementById('lp-mobile');
+  const setMenu = (open) => {
+    if (!burger || !mobile) return;
+    burger.setAttribute('aria-expanded', String(open));
+    burger.setAttribute('aria-label', open ? 'Close menu' : 'Open menu');
+    mobile.hidden = !open;
+    nav.classList.toggle('is-open', open);
+  };
+  if (burger) burger.addEventListener('click', () => setMenu(burger.getAttribute('aria-expanded') !== 'true'));
+  document.querySelectorAll('[data-menu-link]').forEach((a) => a.addEventListener('click', () => setMenu(false)));
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') setMenu(false); });
+
+  // Scroll reveal: fade, lift and un-blur as content enters the viewport.
+  const reveals = document.querySelectorAll('[data-reveal]');
+  reveals.forEach((el) => { const d = Number(el.dataset.delay || 0); if (d) el.style.transitionDelay = `${d}ms`; });
+  if ('IntersectionObserver' in window && !reduce) {
+    const io = new IntersectionObserver((entries) => entries.forEach((en) => {
+      if (en.isIntersecting) { en.target.classList.add('is-in'); io.unobserve(en.target); }
+    }), { rootMargin: '0px 0px -8% 0px', threshold: 0.12 });
+    reveals.forEach((el) => io.observe(el));
+  } else reveals.forEach((el) => el.classList.add('is-in'));
+
+  // Hero parallax on pointer move (desktop only).
+  const art = document.querySelector('[data-parallax]');
+  if (art && !reduce && window.matchMedia('(pointer: fine)').matches) {
+    const hero = art.closest('section');
+    hero.addEventListener('pointermove', (e) => {
+      const r = hero.getBoundingClientRect();
+      const x = (e.clientX - r.left) / r.width - 0.5;
+      const y = (e.clientY - r.top) / r.height - 0.5;
+      art.style.transform = `translate3d(${x * -18}px, ${y * -14}px, 0) rotate(${x * -1.2}deg)`;
+    });
+    hero.addEventListener('pointerleave', () => { art.style.transform = ''; });
+  }
+
+  // Before / after switch.
+  const sw = document.querySelector('[data-ba-switch]');
+  const grid = document.querySelector('[data-ba-grid]');
+  if (sw && grid) {
+    const lb = document.querySelector('[data-label-before]');
+    const la = document.querySelector('[data-label-after]');
+    const set = (after) => {
+      sw.setAttribute('aria-checked', String(after));
+      sw.setAttribute('aria-label', after ? 'Show without A.I. IPO' : 'Show with A.I. IPO');
+      grid.classList.toggle('is-after', after);
+      lb.classList.toggle('is-on', !after); la.classList.toggle('is-on', after);
+    };
+    sw.addEventListener('click', () => set(sw.getAttribute('aria-checked') !== 'true'));
+    lb.addEventListener('click', () => set(false)); la.addEventListener('click', () => set(true));
+    // Start on "without", then flip once the cards come into view so the change is seen.
+    set(false);
+    if ('IntersectionObserver' in window) {
+      const io = new IntersectionObserver(([en]) => { if (en.isIntersecting) { setTimeout(() => set(true), reduce ? 0 : 1400); io.disconnect(); } }, { threshold: 0.5 });
+      io.observe(grid);
+    } else set(true);
+  }
+
+  // Stage selector (tabs) with auto-advance until the visitor interacts.
+  const stages = document.querySelector('[data-stages]');
+  if (stages) {
+    const tabs = Array.from(stages.querySelectorAll('[role="tab"]'));
+    const progress = stages.querySelector('[data-stage-progress]');
+    let current = 0; let timer = null; let visible = false; let touched = false;
+    const show = (i, focus) => {
+      current = (i + tabs.length) % tabs.length;
+      tabs.forEach((t, k) => {
+        const on = k === current;
+        t.setAttribute('aria-selected', String(on));
+        t.tabIndex = on ? 0 : -1;
+        document.getElementById(t.getAttribute('aria-controls')).hidden = !on;
+      });
+      if (progress) progress.style.transform = `translateX(${current * 100}%)`;
+      if (focus) tabs[current].focus();
+    };
+    const stop = () => { touched = true; clearInterval(timer); timer = null; };
+    const start = () => { if (!touched && !reduce && visible && !timer) timer = setInterval(() => show(current + 1), 4200); };
+    tabs.forEach((t, i) => {
+      t.addEventListener('click', () => { stop(); show(i); });
+      t.addEventListener('keydown', (e) => {
+        const k = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 }[e.key];
+        if (k) { e.preventDefault(); stop(); show(current + k, true); }
+        if (e.key === 'Home') { e.preventDefault(); stop(); show(0, true); }
+        if (e.key === 'End') { e.preventDefault(); stop(); show(tabs.length - 1, true); }
+      });
+    });
+    stages.addEventListener('pointerenter', () => { clearInterval(timer); timer = null; });
+    stages.addEventListener('pointerleave', start);
+    if ('IntersectionObserver' in window) {
+      new IntersectionObserver(([en]) => { visible = en.isIntersecting; if (visible) start(); else { clearInterval(timer); timer = null; } }, { threshold: 0.35 }).observe(stages);
+    }
+  }
+
+  // Live proceeds calculator (illustrative). Integer cents and basis points: no floating-point drift.
+  const calc = document.querySelector('[data-calc]');
+  if (calc) {
+    const fmtUsd = (cents) => '$' + Math.round(cents / 100).toLocaleString('en-US');
+    const fmtNum = (n) => Math.round(n).toLocaleString('en-US');
+    const out = (k) => calc.querySelector(`[data-out="${k}"]`);
+    const res = (k) => calc.querySelector(`[data-res="${k}"]`);
+    let last = {};
+    const fill = (input) => {
+      const p = ((input.value - input.min) / (input.max - input.min)) * 100;
+      input.style.setProperty('--fill', `${p}%`);
+    };
+    const update = () => {
+      const v = Object.fromEntries(Array.from(calc.querySelectorAll('input[type=range]')).map((i) => [i.name, Number(i.value)]));
+      calc.querySelectorAll('input[type=range]').forEach(fill);
+      out('pre').textContent = fmtNum(v.pre);
+      out('primary').textContent = fmtNum(v.primary);
+      out('secondary').textContent = fmtNum(v.secondary);
+      out('price').textContent = '$' + v.price.toFixed(2);
+      out('discount').textContent = v.discount + '%';
+      out('expenses').textContent = fmtUsd(v.expenses * 100);
+      const priceC = Math.round(v.price * 100);
+      const bps = Math.round(v.discount * 100);
+      const gross = v.primary * priceC;
+      const net = gross - Math.round((gross * bps) / 10000) - Math.round(v.expenses * 100);
+      const seller = v.secondary * priceC;
+      const post = v.pre + v.primary;
+      const keep = post ? (v.pre / post) * 100 : 100;
+      const next = { net: fmtUsd(net), gross: fmtUsd(gross), seller: fmtUsd(seller), post: fmtNum(post), keep: keep.toFixed(2) + '% of their stake' };
+      Object.entries(next).forEach(([k, val]) => {
+        const el = res(k);
+        if (last[k] !== val) { el.textContent = val; if (!reduce && last[k] !== undefined) { el.classList.remove('lp-flash'); void el.offsetWidth; el.classList.add('lp-flash'); } }
+      });
+      res('net').closest('.lp-result').classList.toggle('is-negative', net < 0);
+      last = next;
+    };
+    calc.addEventListener('input', update);
+    calc.addEventListener('submit', (e) => e.preventDefault());
+    update();
+  }
+})();
