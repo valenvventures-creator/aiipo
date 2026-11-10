@@ -45,10 +45,13 @@ The app is hosted the same way as the other Thought Authorities sites, entirely 
 | Email (optional) | Resend, using `RESEND_API_KEY` and `EMAIL_FROM` |
 
 **Set-up**
-1. Connect this repository to a Netlify site (or keep your existing site linked to it). `netlify.toml`
-   configures everything; leave the build command and publish directory in the Netlify UI empty.
-2. Turn on **Netlify Database** for the site, as on your other sites. Netlify then provides
-   `NETLIFY_DB_URL` automatically. The tables are created on first use.
+1. Link the project to this repository: **Project configuration → Developer settings → Continuous
+   deployment → Repository → Link repository**. `netlify.toml` configures the build; leave the build
+   command and publish directory in the Netlify UI empty.
+2. Netlify Database is provisioned automatically on deploy, because the repo contains a migration in
+   `netlify/database/migrations/` (the same convention as the other sites). Netlify then provides
+   `NETLIFY_DB_URL`, and the app creates its remaining tables on first use. Netlify Database requires a
+   credit-based Netlify plan.
 3. Deploy. Every build runs the full test suite first, and a failing test stops the deploy.
 
 Sign-up, login, MFA, the demo and every workspace feature then work on the site's own address.
