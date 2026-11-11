@@ -51,8 +51,12 @@ export async function ensureMasterKey() {
 
 // Email verification: 'required' needs a working mail transport. 'auto' (default) requires it only when
 // email can actually be delivered (a mail provider is configured, or the development outbox is active).
+// Values pasted into hosting dashboards often carry stray spaces or wrapping quotes; strip them (as the
+// other Thought Authorities sites do).
+const clean = (v) => String(v ?? '').trim().replace(/^(["'])(.*)\1$/, '$2').trim();
+const cleanKey = (v) => clean(v).replace(/\s+/g, '');
 // Resend uses the same variable names as the other Thought Authorities sites (RESEND_API_KEY, EMAIL_FROM).
-const resend = !IS_TEST && Boolean(env.RESEND_API_KEY && env.EMAIL_FROM);
+const resend = !IS_TEST && Boolean(cleanKey(env.RESEND_API_KEY) && clean(env.EMAIL_FROM));
 const mailAvailable = resend || (!IS_TEST && Boolean(env.MAIL_WEBHOOK_URL)) || !IS_PROD;
 const verifyMode = (env.EMAIL_VERIFICATION || 'auto').toLowerCase();
 
@@ -89,11 +93,11 @@ export const config = {
   // Netlify Functions accept requests up to 6 MB, so uploads (sent base64-encoded) are capped lower there.
   uploads: { maxBytes: Number(env.TA_MAX_UPLOAD_MB || 15) * 1024 * 1024 },
   mail: {
-    from: env.EMAIL_FROM || env.MAIL_FROM || 'Thought Authorities <no-reply@localhost>',
-    replyTo: env.EMAIL_REPLY_TO || '',
+    from: clean(env.EMAIL_FROM) || clean(env.MAIL_FROM) || 'Thought Authorities <no-reply@localhost>',
+    replyTo: clean(env.EMAIL_REPLY_TO),
     // Resend (RESEND_API_KEY + EMAIL_FROM) or any HTTPS webhook that accepts {from,to,subject,text}.
     webhookUrl: resend ? 'https://api.resend.com/emails' : IS_TEST ? '' : (env.MAIL_WEBHOOK_URL || ''),
-    webhookToken: resend ? env.RESEND_API_KEY.trim() : (env.MAIL_WEBHOOK_TOKEN || ''),
+    webhookToken: resend ? cleanKey(env.RESEND_API_KEY) : cleanKey(env.MAIL_WEBHOOK_TOKEN),
   },
   ai: {
     model: env.TA_AI_MODEL || 'claude-opus-5-5',
