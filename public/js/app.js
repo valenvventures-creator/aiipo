@@ -156,7 +156,7 @@
     const la = document.querySelector('[data-label-after]');
     const set = (after) => {
       sw.setAttribute('aria-checked', String(after));
-      sw.setAttribute('aria-label', after ? 'Show without A.I. IPO' : 'Show with A.I. IPO');
+      sw.setAttribute('aria-label', after ? 'Show before' : 'Show after');
       grid.classList.toggle('is-after', after);
       lb.classList.toggle('is-on', !after); la.classList.toggle('is-on', after);
     };

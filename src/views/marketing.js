@@ -95,9 +95,9 @@ export function landing({ nonce, session }) {
       <p class="lp-sub">And how A.I. IPO changes each one. Flip the switch.</p>
     </div>
     <div class="lp-toggle" data-reveal data-delay="100">
-      <span class="lp-toggle-label" data-label-before>Without A.I. IPO</span>
-      <button class="lp-switch" type="button" role="switch" aria-checked="true" aria-label="Show with A.I. IPO" data-ba-switch><span></span></button>
-      <span class="lp-toggle-label is-on" data-label-after>With A.I. IPO</span>
+      <span class="lp-toggle-label" data-label-before>Before</span>
+      <button class="lp-switch" type="button" role="switch" aria-checked="true" aria-label="Show after" data-ba-switch><span></span></button>
+      <span class="lp-toggle-label is-on" data-label-after>After</span>
     </div>
     <div class="lp-ba-grid is-after" data-ba-grid>
       ${BEFORE_AFTER.map(([t, before, after], i) => html`<article class="lp-ba" data-reveal data-delay="${i * 80}">
