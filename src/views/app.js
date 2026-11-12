@@ -23,50 +23,129 @@ function noProject(ctx, nonce, active, title) {
 }
 
 // ---------- Dashboard ----------
+// ---------- Dashboard ----------
+// Status colours follow the validated status palette (good / warning / serious / critical) and always
+// travel with an icon and a word, never colour alone. Gold is the brand accent for "where you are".
+const ICON = {
+  done: raw('<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 8.5 6.5 11.5 12.5 4.5"/></svg>'),
+  clock: raw('<svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="5.5"/><path d="M8 5v3.2l2 1.3"/></svg>'),
+  alert: raw('<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 4v5"/><circle cx="8" cy="11.8" r=".6"/></svg>'),
+  dot: raw('<svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="3"/></svg>'),
+  ring: raw('<svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="4.5"/></svg>'),
+  arrow: raw('<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8h9M8.5 4.5 12 8l-3.5 3.5"/></svg>'),
+};
+function taskState(status) {
+  if (['Approved', 'Not applicable'].includes(status)) return ['good', 'done'];
+  if (status === 'Waiting for review') return ['warning', 'clock'];
+  if (status === 'Blocked') return ['critical', 'alert'];
+  if (status === 'Changes requested' || status === 'Waiting for information') return ['serious', 'alert'];
+  if (status === 'In progress') return ['accent', 'dot'];
+  return ['neutral', 'ring'];
+}
+const pill = (status) => { const [tone, icon] = taskState(status); return html`<span class="db-pill db-${tone}">${ICON[icon]}${status}</span>`; };
+const SEV = { Critical: ['critical', 'alert'], High: ['serious', 'alert'], Medium: ['warning', 'clock'], Low: ['neutral', 'ring'] };
+const sevPill = (sev) => { const [tone, icon] = SEV[sev] || SEV.Low; return html`<span class="db-pill db-${tone}">${ICON[icon]}${sev || 'Unrated'}</span>`; };
+// Bars drawn as SVG (presentation attributes are allowed by the CSP; inline styles are not).
+const meter = (pct, label) => html`<svg class="db-meter" viewBox="0 0 100 6" preserveAspectRatio="none" role="img" aria-label="${label}"><rect class="db-meter-track" width="100" height="6" rx="3"/><rect class="db-meter-fill" width="${Math.max(0, Math.min(100, pct))}" height="6" rx="3"/></svg>`;
+const STAGE_SHORT = ['Strategy', 'Team', 'Finance', 'Legal', 'Disclosure', 'Review', 'Marketing', 'Pricing', 'Closing', 'First 90 days', 'Public company'];
+
 export function dashboard({ ctx, nonce, plan, project, flash }) {
   if (!project) return noProject(ctx, nonce, 'dashboard', 'Dashboard');
   const comp = completion(project.profile);
   const routes = project.assessment.routes || [];
+  const active = plan.activeStage.n;
+  const doneTasks = plan.readiness.reduce((a, r) => a + r.done, 0);
+  const totalTasks = plan.readiness.reduce((a, r) => a + r.total, 0);
   return shell({
-    ctx, nonce, flash, active: 'dashboard', title: 'Dashboard',
+    ctx, nonce, flash, active: 'dashboard', title: 'Dashboard', extraCss: '/css/dashboard.css',
     body: html`
-${pageHead(project.name, html`Active stage: <strong>${plan.activeStage.n}. ${plan.activeStage.name}</strong>`, html`<a class="btn btn-outline btn-sm" href="/app/guide">Ask the A.I. guide</a>`)}
-<div class="grid-3">
-  <section class="card span-2">
-    <h2>Your next steps</h2>
-    ${plan.next.length ? html`<ol class="next-list">${plan.next.map((t) => html`<li><a href="/app/tasks/${t.id}">${t.title}</a><span class="meta">Stage ${t.stage} · ${ROLES[t.owner_role] || t.owner_role} · ${statusBadge(t.status)}</span></li>`)}</ol>` : html`<p>No unblocked tasks. Check items waiting for review.</p>`}
-  </section>
-  <section class="card">
-    <h2>Critical blockers</h2>
-    ${plan.critical ? html`<p class="big-num warn">${plan.critical}</p><p>critical issue${plan.critical > 1 ? 's' : ''} open</p>` : html`<p class="big-num">0</p><p>critical issues recorded</p>`}
-    ${plan.blockers.length ? html`<ul class="mini">${plan.blockers.map((b) => html`<li><a href="/app/records/${b.id}">${String(b.data.finding).slice(0, 80)}</a> ${statusBadge(b.data.severity)}</li>`)}</ul>` : ''}
-    <a href="/app/legal#issue" class="link-arrow">Issue register</a>
-  </section>
-</div>
-<div class="grid-3">
-  <section class="card"><h2>Waiting for review</h2><p class="big-num">${plan.waitingReview.length}</p><p>tasks with professional reviewers</p><a class="link-arrow" href="/app/tasks?status=Waiting%20for%20review">View</a></section>
-  <section class="card"><h2>Documents</h2><p class="big-num">${plan.docs.total}</p><p>${plan.docs.unreviewed} unreviewed · uploads are evidence, not approval</p><a class="link-arrow" href="/app/dataroom">Data room</a></section>
-  <section class="card"><h2>Upcoming dates</h2>${plan.upcoming.length ? html`<ul class="mini">${plan.upcoming.map((t) => html`<li>${t.due_date} · <a href="/app/tasks/${t.id}">${t.title}</a></li>`)}</ul>` : html`<p class="muted">No internal targets set. Assign dates in Tasks.</p>`}<p class="fine">Internal targets are distinct from legal deadlines.</p></section>
-</div>
-<section class="card">
-  <h2>Readiness by stage</h2>
-  <p class="fine">Shown per stage with evidence - not a single success percentage. Gates open only when every applicable task is approved or justified as not applicable.</p>
-  <div class="stage-bars">${plan.readiness.map((r) => html`<a class="stage-bar ${r.ready ? 'ready' : r.done ? 'part' : ''}" href="/app/roadmap/${r.slug}"><span class="sb-n">${r.n}</span><span class="sb-name">${r.name}</span><span class="sb-count">${r.done}/${r.total}</span></a>`)}</div>
+<div class="db" data-dash>
+<section class="db-hero db-in d0">
+  <div class="db-hero-glow" aria-hidden="true"></div>
+  <div class="db-hero-main">
+    <p class="db-eyebrow">IPO project · ${project.name}</p>
+    <h1 class="db-h1">Welcome back${ctx.profile.firstName ? `, ${ctx.profile.firstName}` : ''}.</h1>
+    <p class="db-hero-sub">You are working through <strong>Stage ${active}: ${plan.activeStage.name}</strong>. ${plan.next.length ? html`Your next step is <a href="/app/tasks/${plan.next[0].id}">${plan.next[0].title}</a>.` : 'No tasks are unblocked right now - check items waiting for review.'}</p>
+    <div class="db-actions">
+      <a class="db-btn db-btn-ink" href="/app/guide">Ask the A.I. guide ${ICON.arrow}</a>
+      <a class="db-btn" href="/app/capital#proceeds">Proceeds calculator</a>
+      <a class="db-btn" href="/app/dataroom">Upload a document</a>
+      <a class="db-btn" href="/app/settings">Invite your team</a>
+    </div>
+  </div>
+  <div class="db-hero-figure" aria-label="Current stage ${active} of 10">
+    <p class="db-mono">Current stage</p>
+    <p class="db-figure"><span data-count="${active}">${String(active).padStart(2, '0')}</span><span class="db-figure-of">/ 10</span></p>
+    <p class="db-figure-name">${STAGE_SHORT[active]}</p>
+  </div>
 </section>
-<div class="grid-2">
-  <section class="card">
-    <h2>Provisional route comparison</h2>
-    <ul class="routes">${routes.map((r) => html`<li><strong>${r.name}</strong> <span class="route-status rs-${r.status}">${ROUTE_STATUS[r.status] || r.status}</span><p>${r.reasons[0]}</p></li>`)}</ul>
-    <a class="link-arrow" href="/app/roadmap#routes">Classification details</a>
+
+<section class="db-card db-journey db-in d1" aria-labelledby="journey-h">
+  <div class="db-card-head"><h2 id="journey-h">Your route to market</h2><a class="db-link" href="/app/roadmap">Open roadmap ${ICON.arrow}</a></div>
+  <div class="db-journey-scroll">
+    <ol class="db-track" data-journey>
+      <li class="db-track-line" aria-hidden="true"><svg viewBox="0 0 1100 4" preserveAspectRatio="none"><line class="db-line-track" x1="50" y1="2" x2="1050" y2="2"/><line class="db-line-fill" x1="50" y1="2" x2="${50 + active * 100}" y2="2"/></svg></li>
+      ${plan.readiness.map((r) => {
+    const state = r.ready ? 'done' : r.n === active ? 'active' : r.done ? 'part' : 'next';
+    const label = { done: 'Gate ready', active: 'In progress', part: 'Started', next: 'Not started' }[state];
+    return html`<li class="db-stop db-stop-${state}">
+        <a href="/app/roadmap/${r.slug}" aria-label="Stage ${r.n}, ${r.name}: ${label}, ${r.done} of ${r.total} tasks complete">
+          <span class="db-node">${state === 'done' ? ICON.done : html`<b>${String(r.n).padStart(2, '0')}</b>`}</span>
+          <span class="db-stop-name">${STAGE_SHORT[r.n]}</span>
+          <span class="db-stop-count">${r.total ? `${r.done}/${r.total}` : 'n/a'}</span>
+          <span class="db-tip" role="tooltip"><strong>Stage ${r.n} · ${r.name}</strong>${label} · ${r.done} of ${r.total} tasks approved or not applicable</span>
+        </a>
+      </li>`;
+  })}
+    </ol>
+  </div>
+  <p class="db-fine">Gates open only when every applicable task is approved or justified as not applicable. There is deliberately no single readiness score.</p>
+</section>
+
+<section class="db-kpis db-in d2" aria-label="Key figures">
+  <a class="db-kpi" href="/app/tasks"><p class="db-kpi-label">Unblocked tasks</p><p class="db-kpi-value" data-count="${plan.actionable.length}">${plan.actionable.length}</p><p class="db-kpi-note">ready to work on now</p></a>
+  <a class="db-kpi ${plan.critical ? 'db-kpi-alert' : ''}" href="/app/legal#issue"><p class="db-kpi-label">Critical blockers</p><p class="db-kpi-value" data-count="${plan.critical}">${plan.critical}</p><p class="db-kpi-note">${plan.critical ? html`<span class="db-pill db-critical">${ICON.alert}Needs attention</span>` : html`<span class="db-pill db-good">${ICON.done}None open</span>`}</p></a>
+  <a class="db-kpi" href="/app/tasks?status=Waiting%20for%20review"><p class="db-kpi-label">Waiting for review</p><p class="db-kpi-value" data-count="${plan.waitingReview.length}">${plan.waitingReview.length}</p><p class="db-kpi-note">with professional reviewers</p></a>
+  <a class="db-kpi" href="/app/dataroom"><p class="db-kpi-label">Documents</p><p class="db-kpi-value" data-count="${plan.docs.total}">${plan.docs.total}</p><p class="db-kpi-note">${plan.docs.unreviewed} unreviewed</p></a>
+  <a class="db-kpi" href="/app/tasks"><p class="db-kpi-label">Tasks complete</p><p class="db-kpi-value"><span data-count="${doneTasks}">${doneTasks}</span><span class="db-kpi-of"> / ${totalTasks}</span></p>
+    ${meter(totalTasks ? Math.round((doneTasks / totalTasks) * 100) : 0, `${doneTasks} of ${totalTasks} tasks complete`)}</a>
+</section>
+
+<div class="db-grid">
+  <section class="db-card db-in d3" aria-labelledby="next-h">
+    <div class="db-card-head"><h2 id="next-h">Your next steps</h2><a class="db-link" href="/app/tasks">All tasks ${ICON.arrow}</a></div>
+    ${plan.next.length ? html`<ol class="db-next">${plan.next.map((t, i) => html`<li>
+      <a class="db-next-item" href="/app/tasks/${t.id}">
+        <span class="db-next-n">${i + 1}</span>
+        <span class="db-next-body"><span class="db-mono">Stage ${String(t.stage).padStart(2, '0')} · ${ROLES[t.owner_role] || t.owner_role}</span><span class="db-next-title">${t.title}</span>${pill(t.status)}</span>
+        <span class="db-next-go">${ICON.arrow}</span>
+      </a></li>`)}</ol>` : html`<div class="db-empty"><p>No unblocked tasks right now.</p><a class="db-link" href="/app/tasks?status=Waiting%20for%20review">See what is waiting for review ${ICON.arrow}</a></div>`}
   </section>
-  <section class="card">
-    <h2>Facts still to verify</h2>
-    ${plan.unknowns.length ? html`<ul class="mini">${plan.unknowns.slice(0, 8).map((u) => html`<li>${u}</li>`)}</ul>` : html`<p>No missing routing inputs. Counsel review is still required.</p>`}
-    <h3 class="h-sm">Onboarding progress</h3>
-    <ul class="mini">${comp.map((c) => html`<li><a href="/app/onboarding?section=${c.key}">${c.title}</a> · ${c.filled}/${c.total}</li>`)}</ul>
+
+  <section class="db-card db-in d3" aria-labelledby="blk-h">
+    <div class="db-card-head"><h2 id="blk-h">Open issues</h2><a class="db-link" href="/app/legal#issue">Issue register ${ICON.arrow}</a></div>
+    ${plan.blockers.length ? html`<ul class="db-issues">${plan.blockers.map((b) => html`<li><a href="/app/records/${b.id}"><span class="db-issue-text">${String(b.data.finding).slice(0, 110)}</span>${sevPill(b.data.severity)}</a></li>`)}</ul>`
+    : html`<div class="db-empty"><span class="db-pill db-good">${ICON.done}No open issues</span><p>Record readiness gaps as you find them so they get an owner and a reviewer.</p><a class="db-link" href="/app/records/new/issue">Log an issue ${ICON.arrow}</a></div>`}
   </section>
 </div>
-${pendingChanges().length ? html`<section class="card notice"><h2>Rule changes requiring attention</h2><ul class="mini">${pendingChanges().map((r) => html`<li><strong>${r.key}</strong> (${r.version}) - adopted, effective ${r.effectiveFrom}. Not applied as current law before that date. ${srcLink(r.source, SOURCES)}</li>`)}</ul></section>` : ''}`,
+
+<div class="db-grid">
+  <section class="db-card db-in d4" aria-labelledby="route-h">
+    <div class="db-card-head"><h2 id="route-h">Provisional routes</h2><a class="db-link" href="/app/roadmap#routes">Classifications ${ICON.arrow}</a></div>
+    <ul class="db-routes">${routes.map((r) => html`<li class="db-route db-route-${r.status}"><p class="db-route-name">${r.name}</p><span class="db-route-status">${ROUTE_STATUS[r.status] || r.status}</span><p class="db-route-why">${r.reasons[0]}</p></li>`)}</ul>
+    ${plan.unknowns.length ? html`<p class="db-mono db-sub">Facts still to verify</p><div class="db-chips">${plan.unknowns.slice(0, 8).map((u) => html`<span class="db-chip">${u}</span>`)}</div>` : html`<p class="db-fine">No missing routing inputs. Counsel review is still required.</p>`}
+  </section>
+
+  <section class="db-card db-in d4" aria-labelledby="prof-h">
+    <div class="db-card-head"><h2 id="prof-h">Company profile</h2><a class="db-link" href="/app/onboarding">Edit profile ${ICON.arrow}</a></div>
+    <ul class="db-meters">${comp.map((c) => html`<li><a href="/app/onboarding?section=${c.key}"><span class="db-meter-name">${c.title}</span>${meter(Math.round((c.filled / c.total) * 100), `${c.filled} of ${c.total} answered`)}<span class="db-meter-fig">${c.filled}/${c.total}</span></a></li>`)}</ul>
+    <p class="db-mono db-sub">Upcoming internal dates</p>
+    ${plan.upcoming.length ? html`<ul class="db-dates">${plan.upcoming.map((t) => html`<li><span class="db-date">${t.due_date}</span><a href="/app/tasks/${t.id}">${t.title}</a></li>`)}</ul>` : html`<p class="db-fine">No internal targets set yet. Assign dates in <a href="/app/tasks">Tasks</a>. Internal targets are distinct from legal deadlines.</p>`}
+  </section>
+</div>
+
+${pendingChanges().length ? html`<section class="db-card db-notice db-in d4"><div class="db-card-head"><h2>Rule changes requiring attention</h2></div><ul class="db-plain">${pendingChanges().map((r) => html`<li><strong>${r.key}</strong> (${r.version}) - adopted, effective ${r.effectiveFrom}. Not applied as current law before that date. ${srcLink(r.source, SOURCES)}</li>`)}</ul></section>` : ''}
+</div>`,
   });
 }
 

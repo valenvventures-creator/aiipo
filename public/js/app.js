@@ -246,3 +246,35 @@
     update();
   }
 })();
+
+// ---------------- Dashboard: count-up figures and journey focus ----------------
+(function () {
+  'use strict';
+  const dash = document.querySelector('[data-dash]');
+  if (!dash) return;
+  const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  // Numbers count up from zero; the final value is already in the HTML, so nothing is lost without JS.
+  if (!reduce) {
+    dash.querySelectorAll('[data-count]').forEach((el, i) => {
+      const target = Number(el.dataset.count);
+      if (!Number.isFinite(target) || target <= 0) return;
+      const pad = el.textContent.trim().length > String(target).length ? el.textContent.trim().length : 0;
+      const fmt = (n) => (pad ? String(n).padStart(pad, '0') : String(n));
+      const start = performance.now() + 250 + i * 60;
+      const dur = 900;
+      el.textContent = fmt(0);
+      const step = (t) => {
+        const p = Math.min(1, Math.max(0, (t - start) / dur));
+        el.textContent = fmt(Math.round(target * (1 - Math.pow(1 - p, 3))));
+        if (p < 1) requestAnimationFrame(step);
+      };
+      requestAnimationFrame(step);
+    });
+  }
+  // On narrow screens, scroll the route so the current stage is in view.
+  const scroller = dash.querySelector('.db-journey-scroll');
+  const current = dash.querySelector('.db-stop-active');
+  if (scroller && current && scroller.scrollWidth > scroller.clientWidth) {
+    scroller.scrollLeft = Math.max(0, current.offsetLeft - scroller.clientWidth / 2 + current.offsetWidth / 2);
+  }
+})();

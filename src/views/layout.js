@@ -122,10 +122,10 @@ export const NAV = [
   ['settings', 'Settings', '/app/settings'],
 ];
 
-export function appShell({ ctx, active, title, body, nonce, flash }) {
+export function appShell({ ctx, active, title, body, nonce, flash, extraCss = '' }) {
   const projects = ctx.projects || [];
   return document({
-    title, nonce, bodyClass: 'app',
+    title, nonce, bodyClass: 'app', extraCss,
     body: html`
 ${ctx.isDemo ? html`<div class="demo-bar" role="status">Demo workspace · fictional company and illustrative data · not legal conclusions · deleted automatically within 2 hours. <a href="/signup">Create your own account</a></div>` : ''}
 <div class="app-grid">
