@@ -69,7 +69,7 @@ body.bold h1, body.bold h2, body.bold h3 { font-family: var(--f-head); font-vari
 .lp-mobile { border-top: 1px solid var(--lp-line); padding: 8px 16px 22px; animation: lp-fade-up .5s var(--lp-ease); }
 .lp-mobile a[data-menu-link] { display: block; padding: 12px 0; font: 600 20px var(--f-head); letter-spacing: -.02em; color: var(--lp-ink); text-decoration: none; }
 .lp-mobile-cta { display: grid; gap: 8px; margin-top: 14px; }
-.lp-nav .lockup-h.lockup-md { --crest-h: 46px; --word-w: 118px; --sub-size: 8.5px; }
+.lp-nav .lockup-h.lockup-md { --crest-h: 46px; --word-w: 118px; --sub-size: 9.5px; }
 
 /* ---------- Hero ---------- */
 .lp-hero { position: relative; min-height: 100svh; display: flex; align-items: center; padding: 120px 0 90px; overflow: hidden; }

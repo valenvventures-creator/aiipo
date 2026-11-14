@@ -388,9 +388,8 @@ h1, h2, h3, .big-num, .sb-n, .sr-n, .rail-n, .l-n, .answer .rec { font-variant-n
 .lk-crest { height: var(--crest-h); width: auto; flex: none; }
 .lk-text { display: inline-flex; flex-direction: column; align-items: stretch; gap: var(--gap); width: var(--word-w); flex: none; }
 .lk-word { width: 100%; height: auto; }
-.lk-sub { display: flex; align-items: center; gap: .75em; font: 700 var(--sub-size)/1 var(--sans); letter-spacing: .42em; text-transform: uppercase; white-space: nowrap; }
-.lk-sub > span { margin-right: -.42em; } /* cancel trailing letter-spacing so the label is optically centred */
-.lk-sub::before, .lk-sub::after { content: ''; flex: 1; height: 1px; background: currentColor; opacity: .55; }
+.lk-sub { display: flex; justify-content: center; align-items: center; font: 400 var(--sub-size)/1 'IBM Plex Mono', ui-monospace, monospace; letter-spacing: .32em; text-transform: uppercase; white-space: nowrap; }
+.lk-sub > span { margin-right: -.32em; } /* cancel trailing letter-spacing so the label is optically centred */
 .lk-divider { width: 1px; align-self: stretch; margin: 2px var(--div-space); background: currentColor; opacity: .35; flex: none; }
 .lockup-dark { color: var(--gold); }
 .lockup-dark .lk-divider { opacity: .45; }
@@ -432,5 +431,8 @@ h1, h2, h3, .big-num, .sb-n, .sr-n, .rail-n, .l-n, .answer .rec { font-variant-n
 .calc-sample tr:last-child td { border-bottom-right-radius: var(--radius); border-bottom: 0; }
 
 /* "A.I. IPO" label in light grey (crest, wordmark and divider stay gold) */
-.lockup .lk-sub { color: #8e979f; }
-.lockup-dark .lk-sub, .footer-grid a.lockup .lk-sub { color: #b9c2cb; }
+/* "A.I. IPO" matches the A.I. C-Level wordmark line: IBM Plex Mono, 0.32em tracking, ivory-muted.
+   On dark backgrounds that is white at 64%; on white it is the same visible grey. */
+.lockup .lk-sub { color: #a4a6aa; }
+.lockup-dark .lk-sub { color: rgba(255, 255, 255, .64); }
+.footer-grid a.lockup .lk-sub { color: #a4a6aa; }
